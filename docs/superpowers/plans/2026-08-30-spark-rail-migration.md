@@ -356,8 +356,23 @@ export interface RailBalance {
   rail: Rail;
   /** Integer sats. For Liquid this is the L-BTC balance. */
   balanceSat: number;
-  /** Liquid only: per-asset balances, including USDT. */
-  assets?: Array<{ assetId: string; balance: number }>;
+  /**
+   * Liquid only: per-asset balances, including USDT.
+   *
+   * This shape is not free: `assetBalances` in `$lib/stores/wallet` is
+   * re-pointed at this array, and five existing call sites read `.balanceSat`,
+   * `.name` and `.ticker` off it (AssetBalances.svelte, SendAsset.svelte,
+   * PaymentsList.svelte, send/liquid/[address]). Renaming or dropping a field
+   * here silently zeroes every Liquid balance in the UI. Note the SDK's
+   * AssetBalance also has an optional `balance` field — that is NOT the sats
+   * figure and must not be substituted for `balanceSat`.
+   */
+  assets?: Array<{
+    assetId: string;
+    balanceSat: number;
+    name?: string;
+    ticker?: string;
+  }>;
 }
 
 export type RailEvent =
@@ -610,7 +625,7 @@ Note the ordering: Liquid checks run first because `lq1` would otherwise not be 
 - [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `bun run test src/lib/rails/router.test.ts`
-Expected: PASS — 20 tests.
+Expected: PASS — 19 tests.
 
 - [ ] **Step 5: Commit**
 
@@ -620,7 +635,7 @@ git add src/lib/rails/router.ts src/lib/rails/router.test.ts
 git commit -m "feat(rails): add pure rail router
 
 Every 'which SDK?' decision lives here and nowhere else. Pure function,
-so all 20 routing cases are tested without an SDK, network, or funds.
+so all 19 routing cases are tested without an SDK, network, or funds.
 Each decision logs its reason for post-hoc diagnosis."
 ```
 
@@ -837,9 +852,14 @@ export const liquidAdapter: RailAdapter = {
     return {
       rail: "liquid",
       balanceSat: Number(wallet?.balanceSat ?? 0),
+      // Read `balanceSat` (required on the SDK's AssetBalance), never
+      // `balance` (optional, and not the sats figure). Pass `name` and
+      // `ticker` through — AssetBalances.svelte renders both.
       assets: (wallet?.assetBalances ?? []).map((a: any) => ({
         assetId: a.assetId,
-        balance: Number(a.balance ?? 0),
+        balanceSat: Number(a.balanceSat ?? 0),
+        name: a.name,
+        ticker: a.ticker,
       })),
     };
   },
@@ -1816,6 +1836,11 @@ Remove the now-unused `walletInfo`-based derivations that fed them. Leave every 
 
 Run: `git diff --name-only`
 Expected: only `src/lib/stores/rails.ts` and `src/lib/stores/wallet.ts`. If anything under `src/components/` appears, the export names drifted — restore them.
+
+Then confirm the asset shape survived, since five call sites depend on it:
+
+Run: `grep -rn "balanceSat" src/components/AssetBalances.svelte src/components/SendAsset.svelte src/components/PaymentsList.svelte`
+Expected: unchanged hits. Those components read `.balanceSat`, `.name` and `.ticker` off each entry of `assetBalances`. If the array you now supply lacks any of those keys, every Liquid balance renders as 0 with no error.
 
 Run: `bun run build`
 Expected: build succeeds.
