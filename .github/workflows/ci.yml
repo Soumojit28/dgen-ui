@@ -36,6 +36,9 @@ jobs:
       - name: Check formatting
         run: bun run lint
 
+      - name: Run tests
+        run: bun run test
+
       - name: Build
         run: bun run build
         env:
