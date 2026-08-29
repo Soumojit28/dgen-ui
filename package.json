@@ -86,10 +86,11 @@
   },
   "dependencies": {
     "@breeztech/breez-sdk-liquid": "^0.11.7",
-    "blech32": "^1.0.0",
+    "@breeztech/breez-sdk-spark": "0.23.0",
     "@capacitor/status-bar": "^7.0.3",
     "@sveltejs/adapter-netlify": "^5.2.4",
     "bip39": "^3.1.0",
+    "blech32": "^1.0.0",
     "canvas": "^3.2.0",
     "cookie": "^1.0.2",
     "cordova-plugin-android-notch": "^1.0.3",

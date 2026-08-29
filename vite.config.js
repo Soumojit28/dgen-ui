@@ -84,7 +84,7 @@ const config = {
     },
   },
   optimizeDeps: {
-    exclude: ["@breeztech/breez-sdk-liquid"],
+    exclude: ["@breeztech/breez-sdk-liquid", "@breeztech/breez-sdk-spark"],
   },
 };
 
