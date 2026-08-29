@@ -320,7 +320,17 @@ export type RailPaymentMethod =
   | "onchain"
   | "spark"
   | "liquid"
-  | "usdt";
+  | "usdt"
+  /**
+   * A Spark token payment. Out of scope (spec 9) and should not occur, but
+   * Spark reuses one `amount: bigint` field across every payment method, and
+   * for tokens that integer is in the token's own units (governed by
+   * TokenMetadata.decimals), NOT sats. Mapping it into `amountSat` would
+   * render 100 USDB as 1 BTC. Such payments keep this method and an
+   * `amountSat` of 0 so they stay visible without displaying a fabricated
+   * figure; the true amount is in `raw`.
+   */
+  | "token";
 
 export interface RailPayment {
   /** Stable id. Spark: `payment.id`. Liquid: `txId`, falling back to a synthetic key. */
@@ -1174,6 +1184,26 @@ describe("toRailPayment (spark)", () => {
     );
   });
 
+  it("maps token payments to the token method, not spark", () => {
+    expect(toRailPayment({ ...basePayment, method: "token" }).method).toBe(
+      "token",
+    );
+  });
+
+  it("reports zero sats for a token payment rather than its raw units", () => {
+    // 100 USDB at 6 decimals is 100_000_000 in native units. Reporting that
+    // as sats would show 1 BTC.
+    const result = toRailPayment({
+      ...basePayment,
+      method: "token",
+      amount: 100_000_000n,
+      fees: 1_000n,
+    });
+    expect(result.amountSat).toBe(0);
+    expect(result.feeSat).toBe(0);
+    expect(result.raw).toMatchObject({ amount: 100_000_000n });
+  });
+
   it("maps unknown methods to lightning, the common path", () => {
     expect(toRailPayment({ ...basePayment, method: "unknown" }).method).toBe(
       "lightning",
@@ -1239,7 +1269,7 @@ function mapMethod(method: unknown): RailPaymentMethod {
     case "spark":
       return "spark";
     case "token":
-      return "spark";
+      return "token";
     default:
       return "lightning";
   }
@@ -1254,15 +1284,29 @@ function mapMethod(method: unknown): RailPaymentMethod {
  */
 export function toRailPayment(payment: unknown): RailPayment {
   const p = payment as Record<string, any>;
+  const method = mapMethod(p.method);
+
+  // Spark reuses one `amount` field for every method, but a token payment's
+  // amount is in the token's own units, not sats. Reporting it as sats would
+  // render 100 USDB as 1 BTC. Tokens are out of scope (spec 9) and should
+  // never appear; if one does, keep it visible with a zero amount and the
+  // true value in `raw` rather than displaying a fabricated figure.
+  const isToken = method === "token";
+  if (isToken) {
+    sdkLogger.warn(
+      `[rails/spark] token payment ${p.id} — amount not in sats, reporting 0`,
+    );
+  }
+
   return {
     id: String(p.id ?? ""),
     rail: "spark",
     direction: p.paymentType === "send" ? "send" : "receive",
     status: mapStatus(p.status),
-    amountSat: Number(p.amount ?? 0),
-    feeSat: Number(p.fees ?? 0),
+    amountSat: isToken ? 0 : Number(p.amount ?? 0),
+    feeSat: isToken ? 0 : Number(p.fees ?? 0),
     timestamp: Number(p.timestamp ?? 0),
-    method: mapMethod(p.method),
+    method,
     raw: payment,
   };
 }
