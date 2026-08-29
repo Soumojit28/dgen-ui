@@ -77,8 +77,8 @@
     "preview:prod": "vite build --mode production && vite preview",
     "lint": "prettier --check .",
     "format": "prettier --write .",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "test": "svelte-kit sync && vitest run",
+    "test:watch": "svelte-kit sync && vitest"
   },
   "type": "module",
   "resolutions": {
