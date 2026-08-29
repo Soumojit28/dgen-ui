@@ -13,3 +13,6 @@ db
 test-results/
 playwright-report/
 test-*.js
+
+# SDD scratch workspace (subagent-driven-development)
+.superpowers/
