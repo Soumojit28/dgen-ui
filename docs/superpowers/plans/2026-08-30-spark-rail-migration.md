@@ -29,37 +29,37 @@
 
 **Created:**
 
-| File | Responsibility |
-|---|---|
-| `vitest.config.ts` | Test runner config |
-| `src/lib/rails/types.ts` | `Rail`, `RailPayment`, `RailStatus`, `RailAdapter` interface. No logic. |
-| `src/lib/rails/router.ts` | Pure rail selection: destination or receive method in, rail out. |
-| `src/lib/rails/router.test.ts` | Router tests. No SDK, no network. |
-| `src/lib/rails/liquid.ts` | Liquid adapter. Wraps existing `walletService` internals. |
-| `src/lib/rails/liquid.test.ts` | Liquid payment mapping tests. |
-| `src/lib/rails/spark.ts` | Spark adapter. Owns the Spark SDK instance. |
-| `src/lib/rails/spark.test.ts` | Spark payment mapping tests. |
-| `src/lib/rails/index.ts` | Public payment API. The only rails module the UI imports. |
-| `src/lib/stores/rails.ts` | Per-rail connection state, balances. |
-| `src/components/DepositClaims.svelte` | Manual claim UI for deposits over the fee ceiling. |
-| `src/components/SparkStatusBanner.svelte` | Network degradation banner. |
+| File                                      | Responsibility                                                          |
+| ----------------------------------------- | ----------------------------------------------------------------------- |
+| `vitest.config.ts`                        | Test runner config                                                      |
+| `src/lib/rails/types.ts`                  | `Rail`, `RailPayment`, `RailStatus`, `RailAdapter` interface. No logic. |
+| `src/lib/rails/router.ts`                 | Pure rail selection: destination or receive method in, rail out.        |
+| `src/lib/rails/router.test.ts`            | Router tests. No SDK, no network.                                       |
+| `src/lib/rails/liquid.ts`                 | Liquid adapter. Wraps existing `walletService` internals.               |
+| `src/lib/rails/liquid.test.ts`            | Liquid payment mapping tests.                                           |
+| `src/lib/rails/spark.ts`                  | Spark adapter. Owns the Spark SDK instance.                             |
+| `src/lib/rails/spark.test.ts`             | Spark payment mapping tests.                                            |
+| `src/lib/rails/index.ts`                  | Public payment API. The only rails module the UI imports.               |
+| `src/lib/stores/rails.ts`                 | Per-rail connection state, balances.                                    |
+| `src/components/DepositClaims.svelte`     | Manual claim UI for deposits over the fee ceiling.                      |
+| `src/components/SparkStatusBanner.svelte` | Network degradation banner.                                             |
 
 **Modified:**
 
-| File | Change |
-|---|---|
-| `package.json` | Add vitest, jsdom, fake-indexeddb, Spark SDK; add `test` script. |
-| `vite.config.js:87` | Exclude Spark from dep optimization alongside Liquid. |
-| `.github/workflows/ci.yml` | Run tests. |
-| `src/routes/(app)/+layout.svelte` | Boot both rails in parallel, independent degradation. |
-| `src/lib/stores/wallet.ts` | Split balance into per-rail; consume normalized events. |
-| `src/lib/transactionService.ts` | Store `RailPayment`; IndexedDB schema v2. |
-| `src/lib/txErrors.ts` | Add Spark error strings. |
-| `src/lib/sendGate.ts` | Per-rail gating. |
-| `src/routes/(app)/[username]/receive/+page.svelte` | Receive via router; drop BOLT12. |
-| `src/routes/(app)/send/**` | Send via router. |
-| `src/routes/(app)/settings/lightning-address/+page.svelte` | Spark-native address registration. |
-| `src/lib/assetService.ts` | Remove unreachable `exchangeAssets`. |
+| File                                                       | Change                                                           |
+| ---------------------------------------------------------- | ---------------------------------------------------------------- |
+| `package.json`                                             | Add vitest, jsdom, fake-indexeddb, Spark SDK; add `test` script. |
+| `vite.config.js:87`                                        | Exclude Spark from dep optimization alongside Liquid.            |
+| `.github/workflows/ci.yml`                                 | Run tests.                                                       |
+| `src/routes/(app)/+layout.svelte`                          | Boot both rails in parallel, independent degradation.            |
+| `src/lib/stores/wallet.ts`                                 | Split balance into per-rail; consume normalized events.          |
+| `src/lib/transactionService.ts`                            | Store `RailPayment`; IndexedDB schema v2.                        |
+| `src/lib/txErrors.ts`                                      | Add Spark error strings.                                         |
+| `src/lib/sendGate.ts`                                      | Per-rail gating.                                                 |
+| `src/routes/(app)/[username]/receive/+page.svelte`         | Receive via router; drop BOLT12.                                 |
+| `src/routes/(app)/send/**`                                 | Send via router.                                                 |
+| `src/routes/(app)/settings/lightning-address/+page.svelte` | Spark-native address registration.                               |
+| `src/lib/assetService.ts`                                  | Remove unreachable `exchangeAssets`.                             |
 
 **Deleted:** `tests/browser/wallet.spec.ts` (Task 16).
 
@@ -70,11 +70,13 @@
 `src/lib/secureStorage.test.ts` imports from `vitest`, but vitest is not installed and `package.json` has no `test` script. That test has never run. Nothing else in this plan can be test-driven until this is fixed.
 
 **Files:**
+
 - Create: `vitest.config.ts`
 - Modify: `package.json`, `.github/workflows/ci.yml`
 - Test: `src/lib/rails/smoke.test.ts` (temporary, deleted in this task's final step)
 
 **Interfaces:**
+
 - Consumes: nothing
 - Produces: `bun run test` runs the suite; `bun run test:watch` for iteration
 
@@ -172,8 +174,8 @@ if (!globalThis.crypto?.subtle) {
 In `.github/workflows/ci.yml`, insert between the "Check formatting" and "Build" steps:
 
 ```yaml
-      - name: Run tests
-        run: bun run test
+- name: Run tests
+  run: bun run test
 ```
 
 - [ ] **Step 8: Delete the smoke test and commit**
@@ -194,10 +196,12 @@ fake-indexeddb, plus a test step in CI."
 ## Task 2: Install the Spark SDK
 
 **Files:**
+
 - Modify: `package.json`, `vite.config.js:87`
 - Test: `src/lib/rails/install.test.ts` (temporary, deleted in this task's final step)
 
 **Interfaces:**
+
 - Consumes: Task 1's test runner
 - Produces: `@breeztech/breez-sdk-spark/web` importable; `VITE_SPARK_API_KEY` read from env
 
@@ -259,7 +263,7 @@ VITE_SPARK_API_KEY=
 In `.github/workflows/ci.yml`, add to the `env:` block of the Build step:
 
 ```yaml
-          VITE_SPARK_API_KEY: ci-placeholder
+VITE_SPARK_API_KEY: ci-placeholder
 ```
 
 - [ ] **Step 6: Verify the build still succeeds**
@@ -285,10 +289,12 @@ optimization like the Liquid SDK, as WASM must not be pre-bundled."
 ## Task 3: The normalized model
 
 **Files:**
+
 - Create: `src/lib/rails/types.ts`
 - Test: none (types only — no runtime behaviour to test)
 
 **Interfaces:**
+
 - Consumes: nothing
 - Produces: `Rail`, `RailPaymentStatus`, `RailPaymentMethod`, `RailPayment`, `RailConnectionState`, `RailBalance`, `RailEvent`, `RailAdapter`
 
@@ -390,9 +396,11 @@ max sats (2.1e15) sits well below Number.MAX_SAFE_INTEGER (9.0e15)."
 The highest-value test surface in this plan. Rail selection is a pure function, so every routing decision is testable without an SDK, a network, or funds.
 
 **Files:**
+
 - Create: `src/lib/rails/router.ts`, `src/lib/rails/router.test.ts`
 
 **Interfaces:**
+
 - Consumes: `Rail` from `./types`
 - Produces: `railForDestination(destination: string): Rail`, `railForReceiveMethod(method: string): Rail`, `RailDecision`
 
@@ -613,9 +621,11 @@ Each decision logs its reason for post-hoc diagnosis."
 Wraps today's `walletService` payment functions and maps Liquid payments into `RailPayment`. Behaviour is unchanged — this is a translation layer, not a rewrite.
 
 **Files:**
+
 - Create: `src/lib/rails/liquid.ts`, `src/lib/rails/liquid.test.ts`
 
 **Interfaces:**
+
 - Consumes: `RailAdapter`, `RailPayment`, `RailBalance`, `RailEvent` from `./types`
 - Produces: `toRailPayment(p: unknown): RailPayment` (exported for tests), `liquidAdapter: RailAdapter`
 
@@ -667,7 +677,10 @@ describe("toRailPayment (liquid)", () => {
   });
 
   it("treats unknown statuses as pending rather than dropping them", () => {
-    const result = toRailPayment({ ...basePayment, status: "waitingFeeAcceptance" });
+    const result = toRailPayment({
+      ...basePayment,
+      status: "waitingFeeAcceptance",
+    });
     expect(result.status).toBe("pending");
   });
 
@@ -710,7 +723,11 @@ describe("toRailPayment (liquid)", () => {
   });
 
   it("defaults missing amounts to zero rather than NaN", () => {
-    const result = toRailPayment({ ...basePayment, amountSat: undefined, feesSat: undefined });
+    const result = toRailPayment({
+      ...basePayment,
+      amountSat: undefined,
+      feesSat: undefined,
+    });
     expect(result.amountSat).toBe(0);
     expect(result.feeSat).toBe(0);
   });
@@ -834,15 +851,18 @@ export const liquidAdapter: RailAdapter = {
           break;
         case "paymentSucceeded":
         case "paymentWaitingConfirmation":
-          if (payment) handler({ type: "paymentSucceeded", rail: "liquid", payment });
+          if (payment)
+            handler({ type: "paymentSucceeded", rail: "liquid", payment });
           break;
         case "paymentPending":
         case "paymentWaitingFeeAcceptance":
-          if (payment) handler({ type: "paymentPending", rail: "liquid", payment });
+          if (payment)
+            handler({ type: "paymentPending", rail: "liquid", payment });
           break;
         case "paymentFailed":
         case "paymentRefundable":
-          if (payment) handler({ type: "paymentFailed", rail: "liquid", payment });
+          if (payment)
+            handler({ type: "paymentFailed", rail: "liquid", payment });
           break;
         default:
           sdkLogger.debug(`[rails/liquid] unmapped event: ${sdkEvent?.type}`);
@@ -881,10 +901,12 @@ from history is worse than showing it as in-flight."
 ## Task 6: Spark adapter — connection lifecycle
 
 **Files:**
+
 - Create: `src/lib/rails/spark.ts`
 - Test: covered by Task 7 (this task adds no mappable logic)
 
 **Interfaces:**
+
 - Consumes: `RailAdapter` from `./types`
 - Produces: `sparkAdapter: RailAdapter` (payments and events land in Task 7), `getSparkNetworkStatus(): Promise<string>`
 
@@ -932,7 +954,10 @@ function buildConfig(): sparkSdk.Config {
   // is 1 sat/vbyte (~99 sats), below any provider spread, which would leave
   // deposits unclaimed whenever fees rise (spec 7). Use the recommended
   // rate at claim time instead; anything above it goes to manual claim.
-  config.maxDepositClaimFee = { type: "networkRecommended", leewaySatPerVbyte: 2 };
+  config.maxDepositClaimFee = {
+    type: "networkRecommended",
+    leewaySatPerVbyte: 2,
+  };
 
   return config;
 }
@@ -1045,10 +1070,12 @@ strand deposits whenever fees rise."
 ## Task 7: Spark adapter — payments and events
 
 **Files:**
+
 - Modify: `src/lib/rails/spark.ts`
 - Create: `src/lib/rails/spark.test.ts`
 
 **Interfaces:**
+
 - Consumes: `getSparkSdk` from Task 6
 - Produces: `toRailPayment(p: unknown): RailPayment` exported from `./spark`; working `listPayments`, `onEvent`, `offEvent`
 
@@ -1093,7 +1120,10 @@ describe("toRailPayment (spark)", () => {
 
   it("converts the largest realistic balance without precision loss", () => {
     // 21M BTC in sats — the entire supply, far above any real balance.
-    const result = toRailPayment({ ...basePayment, amount: 2_100_000_000_000_000n });
+    const result = toRailPayment({
+      ...basePayment,
+      amount: 2_100_000_000_000_000n,
+    });
     expect(result.amountSat).toBe(2_100_000_000_000_000);
     expect(Number.isSafeInteger(result.amountSat)).toBe(true);
   });
@@ -1329,9 +1359,11 @@ Svelte template throws at render time."
 The single module screens import. Owns send/receive dispatch by delegating the rail decision to `router.ts`.
 
 **Files:**
+
 - Create: `src/lib/rails/index.ts`
 
 **Interfaces:**
+
 - Consumes: `railForDestination`, `railForReceiveMethod` from `./router`; `sparkAdapter`, `liquidAdapter`
 - Produces: `adapterFor(rail)`, `adapters`, `connectRails(mnemonic)`, `disconnectRails()`, `prepareSend(destination, amountSat?)`, `sendPayment(prepared)`, `createReceiveRequest(method, opts)`, `allPayments(limit?)`, `subscribeRails(handler)`, `PreparedSend`
 
@@ -1428,7 +1460,10 @@ export async function prepareSend(
     });
     const method = prepared.paymentMethod as any;
     const feeSat = Number(
-      method?.lightningFeeSats ?? method?.fee ?? method?.sparkTransferFeeSats ?? 0,
+      method?.lightningFeeSats ??
+        method?.fee ??
+        method?.sparkTransferFeeSats ??
+        0,
     );
     return {
       rail,
@@ -1441,14 +1476,17 @@ export async function prepareSend(
 
   const prepared = await walletService.prepareSendPayment({
     destination: destination.trim(),
-    amount: amountSat !== undefined
-      ? { type: "bitcoin", receiverAmountSat: amountSat }
-      : undefined,
+    amount:
+      amountSat !== undefined
+        ? { type: "bitcoin", receiverAmountSat: amountSat }
+        : undefined,
   } as any);
 
   return {
     rail,
-    amountSat: Number((prepared as any)?.amount?.receiverAmountSat ?? amountSat ?? 0),
+    amountSat: Number(
+      (prepared as any)?.amount?.receiverAmountSat ?? amountSat ?? 0,
+    ),
     feeSat: Number((prepared as any)?.feesSat ?? 0),
     destination,
     raw: prepared,
@@ -1462,7 +1500,9 @@ export async function prepareSend(
  * Spark is not UTXO-based, so gating it there would slow Lightning for no
  * benefit.
  */
-export async function sendPayment(prepared: PreparedSend): Promise<RailPayment> {
+export async function sendPayment(
+  prepared: PreparedSend,
+): Promise<RailPayment> {
   if (prepared.rail === "spark") {
     const sdk = getSparkSdk();
     if (!sdk) throw new Error("Spark rail unavailable");
@@ -1547,8 +1587,12 @@ export async function createReceiveRequest(
  */
 export async function allPayments(limit = 100): Promise<RailPayment[]> {
   const results = await Promise.allSettled([
-    sparkAdapter.isConnected() ? sparkAdapter.listPayments(limit) : Promise.resolve([]),
-    liquidAdapter.isConnected() ? liquidAdapter.listPayments(limit) : Promise.resolve([]),
+    sparkAdapter.isConnected()
+      ? sparkAdapter.listPayments(limit)
+      : Promise.resolve([]),
+    liquidAdapter.isConnected()
+      ? liquidAdapter.listPayments(limit)
+      : Promise.resolve([]),
   ]);
 
   const payments: RailPayment[] = [];
@@ -1556,7 +1600,10 @@ export async function allPayments(limit = 100): Promise<RailPayment[]> {
     if (result.status === "fulfilled") {
       payments.push(...result.value);
     } else {
-      sdkLogger.warn("[rails] listPayments failed for one rail:", result.reason);
+      sdkLogger.warn(
+        "[rails] listPayments failed for one rail:",
+        result.reason,
+      );
     }
   }
 
@@ -1618,9 +1665,11 @@ send gate stays Liquid-only, since Spark is not UTXO-based."
 ## Task 9: Per-rail state store
 
 **Files:**
+
 - Create: `src/lib/stores/rails.ts`
 
 **Interfaces:**
+
 - Consumes: `RailConnectionState`, `RailEvent`, `adapters` from `$lib/rails`
 - Produces: `railState` store, `sparkBalance`, `liquidBalance`, `liquidAssets`, `sparkAvailable`, `liquidAvailable`, `unclaimedDepositCount`, `refreshBalances()`, `setRailState(rail, state)`
 
@@ -1747,9 +1796,11 @@ unchanged and there is one source of balance truth."
 ## Task 10: Boot both rails
 
 **Files:**
+
 - Modify: `src/routes/(app)/+layout.svelte`
 
 **Interfaces:**
+
 - Consumes: `connectRails`, `subscribeRails`, `adapters` from `$lib/rails`; `setRailState`, `refreshBalances`, `setUnclaimedDeposits` from `$lib/stores/rails`
 - Produces: both rails connected at boot; rail events feeding the store
 
@@ -1764,12 +1815,12 @@ Lines around 189, 218, and 241 hold the current single-SDK boot: `walletService.
 Near the existing `import * as walletService from "$lib/walletService";` add:
 
 ```ts
-  import { connectRails, subscribeRails, adapters } from "$lib/rails";
-  import {
-    setRailState,
-    refreshBalances,
-    setUnclaimedDeposits,
-  } from "$lib/stores/rails";
+import { connectRails, subscribeRails, adapters } from "$lib/rails";
+import {
+  setRailState,
+  refreshBalances,
+  setUnclaimedDeposits,
+} from "$lib/stores/rails";
 ```
 
 - [ ] **Step 3: Replace each initWallet call**
@@ -1777,10 +1828,16 @@ Near the existing `import * as walletService from "$lib/walletService";` add:
 Both `await walletService.initWallet(mnemonic, userId);` calls (around lines 189 and 218) become:
 
 ```ts
-      await connectRails(mnemonic, userId);
-      setRailState("spark", adapters.spark.isConnected() ? "connected" : "unavailable");
-      setRailState("liquid", adapters.liquid.isConnected() ? "connected" : "unavailable");
-      await refreshBalances();
+await connectRails(mnemonic, userId);
+setRailState(
+  "spark",
+  adapters.spark.isConnected() ? "connected" : "unavailable",
+);
+setRailState(
+  "liquid",
+  adapters.liquid.isConnected() ? "connected" : "unavailable",
+);
+await refreshBalances();
 ```
 
 `connectRails` only throws when **both** rails fail, so the existing error handling around these calls still means "the wallet could not start" and needs no change.
@@ -1790,33 +1847,33 @@ Both `await walletService.initWallet(mnemonic, userId);` calls (around lines 189
 The existing `walletEventListenerId = await walletService.addEventListener(...)` block (around line 241) becomes:
 
 ```ts
-      railsUnsubscribe = await subscribeRails((event) => {
-        if (event.type === "depositsNeedClaim") {
-          setUnclaimedDeposits(event.count);
-          return;
-        }
-        if (event.type === "balanceChanged" || event.type === "synced") {
-          void refreshBalances();
-          return;
-        }
-        if (
-          event.type === "paymentSucceeded" ||
-          event.type === "paymentPending" ||
-          event.type === "paymentFailed"
-        ) {
-          void refreshBalances();
-          notifyPaymentReceived(
-            event.payment.raw,
-            event.type === "paymentSucceeded" ? "confirmed" : "pending",
-          );
-        }
-      });
+railsUnsubscribe = await subscribeRails((event) => {
+  if (event.type === "depositsNeedClaim") {
+    setUnclaimedDeposits(event.count);
+    return;
+  }
+  if (event.type === "balanceChanged" || event.type === "synced") {
+    void refreshBalances();
+    return;
+  }
+  if (
+    event.type === "paymentSucceeded" ||
+    event.type === "paymentPending" ||
+    event.type === "paymentFailed"
+  ) {
+    void refreshBalances();
+    notifyPaymentReceived(
+      event.payment.raw,
+      event.type === "paymentSucceeded" ? "confirmed" : "pending",
+    );
+  }
+});
 ```
 
 Declare alongside the other component state:
 
 ```ts
-  let railsUnsubscribe: (() => Promise<void>) | null = null;
+let railsUnsubscribe: (() => Promise<void>) | null = null;
 ```
 
 Keep the existing `notifyPaymentReceived` import. If `walletEventListenerId` becomes unused, remove its declaration.
@@ -1826,10 +1883,10 @@ Keep the existing `notifyPaymentReceived` import. If `walletEventListenerId` bec
 Wherever `walletService.removeEventListener` was called on teardown, use:
 
 ```ts
-      if (railsUnsubscribe) {
-        await railsUnsubscribe();
-        railsUnsubscribe = null;
-      }
+if (railsUnsubscribe) {
+  await railsUnsubscribe();
+  railsUnsubscribe = null;
+}
 ```
 
 Leave `walletService.disconnect()` calls alone for now; Task 16 revisits them.
@@ -1856,10 +1913,12 @@ point are unchanged — they are shared, not rail-specific."
 ## Task 11: Merged history and cache schema
 
 **Files:**
+
 - Modify: `src/lib/transactionService.ts:48-75` (the `TransactionCache` class), `src/lib/stores/wallet.ts`
 - Create: `src/lib/rails/history.test.ts`
 
 **Interfaces:**
+
 - Consumes: `allPayments`, `RailPayment` from `$lib/rails`
 - Produces: `mergePayments(a: RailPayment[], b: RailPayment[]): RailPayment[]` exported from `$lib/rails/index`
 
@@ -1957,10 +2016,12 @@ export function mergePayments(
 Then simplify `allPayments` to use it, replacing its sort:
 
 ```ts
-  const [sparkResult, liquidResult] = results;
-  const sparkPayments = sparkResult.status === "fulfilled" ? sparkResult.value : [];
-  const liquidPayments = liquidResult.status === "fulfilled" ? liquidResult.value : [];
-  return mergePayments(sparkPayments, liquidPayments);
+const [sparkResult, liquidResult] = results;
+const sparkPayments =
+  sparkResult.status === "fulfilled" ? sparkResult.value : [];
+const liquidPayments =
+  liquidResult.status === "fulfilled" ? liquidResult.value : [];
+return mergePayments(sparkPayments, liquidPayments);
 ```
 
 Keep the existing `sdkLogger.warn` for rejected results.
@@ -1977,26 +2038,26 @@ In `src/lib/transactionService.ts`, the cache opens `dgen_transactions` at versi
 Change the version and rebuild the store for `RailPayment`:
 
 ```ts
-      const request = indexedDB.open(this.dbName, 2);
+const request = indexedDB.open(this.dbName, 2);
 ```
 
 And replace the `onupgradeneeded` handler:
 
 ```ts
-      request.onupgradeneeded = (event) => {
-        const db = (event.target as IDBOpenDBRequest).result;
-        // v2 stores RailPayment. The cache holds derived data only, so the
-        // upgrade drops and rebuilds rather than migrating field names.
-        if (db.objectStoreNames.contains(this.storeName)) {
-          db.deleteObjectStore(this.storeName);
-        }
-        const store = db.createObjectStore(this.storeName, { keyPath: "id" });
-        store.createIndex("timestamp", "timestamp");
-        store.createIndex("direction", "direction");
-        store.createIndex("status", "status");
-        store.createIndex("amountSat", "amountSat");
-        store.createIndex("rail", "rail");
-      };
+request.onupgradeneeded = (event) => {
+  const db = (event.target as IDBOpenDBRequest).result;
+  // v2 stores RailPayment. The cache holds derived data only, so the
+  // upgrade drops and rebuilds rather than migrating field names.
+  if (db.objectStoreNames.contains(this.storeName)) {
+    db.deleteObjectStore(this.storeName);
+  }
+  const store = db.createObjectStore(this.storeName, { keyPath: "id" });
+  store.createIndex("timestamp", "timestamp");
+  store.createIndex("direction", "direction");
+  store.createIndex("status", "status");
+  store.createIndex("amountSat", "amountSat");
+  store.createIndex("rail", "rail");
+};
 ```
 
 - [ ] **Step 6: Point the transactions store at both rails**
@@ -2004,7 +2065,7 @@ And replace the `onupgradeneeded` handler:
 In `src/lib/stores/wallet.ts`, the transactions store loads via `walletService.getTransactions`. Replace that call with:
 
 ```ts
-  const payments = await allPayments(limit);
+const payments = await allPayments(limit);
 ```
 
 adding `import { allPayments } from "$lib/rails";` at the top. Field references downstream change from Liquid names to the normalized ones: `paymentTime` becomes `timestamp`, `paymentType` becomes `direction`, `feesSat` becomes `feeSat`.
@@ -2033,9 +2094,11 @@ Cache holds derived data, so v2 drops and rebuilds."
 ## Task 12: Send screens
 
 **Files:**
+
 - Modify: `src/routes/(app)/send/[...text]/+page.svelte`, `src/routes/(app)/send/bitcoin/[address]/[amount]/[...feeRate]/+page.svelte`, `src/routes/(app)/send/liquid/[address]/+page.svelte`, `src/routes/(app)/send/liquid/[address]/[amount]/+page.svelte`, `src/components/SendLightning.svelte`, `src/lib/parse.ts`
 
 **Interfaces:**
+
 - Consumes: `prepareSend`, `sendPayment`, `PreparedSend` from `$lib/rails`
 - Produces: send flows routed by destination
 
@@ -2054,15 +2117,18 @@ Every hit is a call site to convert. Work through them one at a time, running `b
 The pattern is the same everywhere. Replace:
 
 ```ts
-  const prepared = await walletService.prepareSendPayment({ destination, amount });
-  const response = await walletService.sendPayment({ prepareResponse: prepared });
+const prepared = await walletService.prepareSendPayment({
+  destination,
+  amount,
+});
+const response = await walletService.sendPayment({ prepareResponse: prepared });
 ```
 
 with:
 
 ```ts
-  const prepared = await prepareSend(destination, amountSat);
-  const payment = await sendPayment(prepared);
+const prepared = await prepareSend(destination, amountSat);
+const payment = await sendPayment(prepared);
 ```
 
 adding `import { prepareSend, sendPayment } from "$lib/rails";`.
@@ -2085,10 +2151,8 @@ import { getSparkSdk } from "$lib/rails/spark";
 and replace `walletService.isConnected()` with `adapters.spark.isConnected() || adapters.liquid.isConnected()`, and `walletService.parseInput(t)` with:
 
 ```ts
-      const sdk = getSparkSdk();
-      const parsed = sdk
-        ? await sdk.parse(t)
-        : await walletService.parseInput(t);
+const sdk = getSparkSdk();
+const parsed = sdk ? await sdk.parse(t) : await walletService.parseInput(t);
 ```
 
 Spark's `InputType` uses the same discriminant names for the cases this switch handles (`bitcoinAddress`, `bolt11Invoice`, `lnurlPay`, `bip21`), so the existing branches still match.
@@ -2118,19 +2182,22 @@ picks the rail from the destination."
 ## Task 13: Receive screen
 
 **Files:**
+
 - Modify: `src/routes/(app)/[username]/receive/+page.svelte`, `src/components/InvoiceTypes.svelte`, `src/lib/utils.ts:540-550`
 
 **Interfaces:**
+
 - Consumes: `createReceiveRequest` from `$lib/rails`
 - Produces: receive flow routed by method; BOLT12 removed
 
 - [ ] **Step 1: Remove the BOLT12 receive option**
 
-Spec 6.2 removes BOLT12 *generation*, not the ability to pay one or to display payments already received over it.
+Spec 6.2 removes BOLT12 _generation_, not the ability to pay one or to display payments already received over it.
 
 **Keep the `bolt12` entry in the `types` object in `src/lib/utils.ts`.** It is still used by `src/routes/(app)/payment/[id]/+page.svelte:399` to render historical BOLT12 payments, and removing it breaks that screen.
 
-Remove only the receive *option*:
+Remove only the receive _option_:
+
 - the BOLT12 tile in `src/components/InvoiceTypes.svelte` (its styling block and button)
 - the `invoiceType === types.bolt12` branch in the receive page (around line 556)
 
@@ -2141,12 +2208,12 @@ Leave the send side alone — `SendLightning.svelte:177,278` and `parse.ts:80` h
 The receive page currently has three branches around lines 402, 447, and 488 calling `prepareReceivePayment` with `paymentMethod: "lightning"`, `"bitcoinAddress"`, and `"liquidAddress"`. Replace all three with one call:
 
 ```ts
-      const request = await createReceiveRequest(invoiceType, {
-        amountSat: amount,
-        description: memo,
-        assetId: invoiceType === "usdt" ? ASSET_IDS.USDT : undefined,
-      });
-      invoiceText = request.destination;
+const request = await createReceiveRequest(invoiceType, {
+  amountSat: amount,
+  description: memo,
+  assetId: invoiceType === "usdt" ? ASSET_IDS.USDT : undefined,
+});
+invoiceText = request.destination;
 ```
 
 adding `import { createReceiveRequest } from "$lib/rails";`.
@@ -2187,9 +2254,11 @@ swap constraints with no Spark equivalent."
 Replaces roughly 400 lines of hand-rolled `breez.fun` HTTP with Spark's native calls.
 
 **Files:**
+
 - Modify: `src/lib/rails/spark.ts`, `src/routes/(app)/settings/lightning-address/+page.svelte`, `src/lib/stores/lightningAddress.ts`, `src/routes/(app)/+layout.svelte`
 
 **Interfaces:**
+
 - Consumes: `getSparkSdk` from `./spark`
 - Produces: `registerLightningAddress(username, description?)`, `getLightningAddress()`, `checkLightningAddressAvailable(username)`, `deleteLightningAddress()` exported from `$lib/rails/spark`
 
@@ -2287,10 +2356,12 @@ instead of silently renaming them."
 ## Task 15: Deposit claims and network status
 
 **Files:**
+
 - Create: `src/components/DepositClaims.svelte`, `src/components/SparkStatusBanner.svelte`
 - Modify: `src/lib/rails/spark.ts`, `src/routes/(app)/+layout.svelte`
 
 **Interfaces:**
+
 - Consumes: `getSparkSdk`, `getSparkNetworkStatus`; `unclaimedDepositCount` from `$lib/stores/rails`
 - Produces: `listUnclaimedDeposits()`, `claimDeposit(txid, vout, maxFeeSat)` exported from `$lib/rails/spark`
 
@@ -2393,7 +2464,11 @@ Create `src/components/DepositClaims.svelte`:
     error = null;
     try {
       // Exactly the fee the SDK asked for. Never the deposit amount.
-      await claimDeposit(deposit.txid, deposit.vout, deposit.requiredFeeSats ?? 0);
+      await claimDeposit(
+        deposit.txid,
+        deposit.vout,
+        deposit.requiredFeeSats ?? 0,
+      );
       await load();
     } catch (e) {
       error = e instanceof Error ? e.message : "Claim failed";
@@ -2527,10 +2602,12 @@ checklist and is the visibility that was missing during the Boltz outage."
 ## Task 16: Removals and cleanup
 
 **Files:**
+
 - Modify: `src/lib/assetService.ts`, `src/lib/walletService.ts`, `src/lib/sendGate.ts`, `src/lib/txErrors.ts`, `src/lib/stores/refundables.ts`, `src/components/RefundForm.svelte`, `src/routes/(app)/refunds/[swapAddress]/+page.svelte`, `src/lib/esplora/PollManager.ts`
 - Delete: `tests/browser/wallet.spec.ts`
 
 **Interfaces:**
+
 - Consumes: everything from Tasks 1–15
 - Produces: no dead payment code in the tree
 
@@ -2569,7 +2646,9 @@ Run `grep -rn "fee_acceptance" src/` and remove every hit.
 Change `trackOutgoingTx(txId, chain)` and `waitForOutgoingSlot()` so the wait applies only when `chain === "liquid"`:
 
 ```ts
-export async function waitForOutgoingSlot(chain: "liquid" | "spark" = "liquid"): Promise<void> {
+export async function waitForOutgoingSlot(
+  chain: "liquid" | "spark" = "liquid",
+): Promise<void> {
   // Spark transfers are not UTXO-based, so there is no conflict to avoid.
   if (chain === "spark") return;
   // ... existing wait logic unchanged
@@ -2589,15 +2668,15 @@ Remove Bitcoin tracking: in `trackPendingTx` and `trackConfirmingTx`, return ear
 In `src/lib/txErrors.ts`, extend `mapTxError` with Spark's messages:
 
 ```ts
-  if (message.includes("MaxDepositClaimFeeExceeded")) {
-    return "Network fees are too high to add this Bitcoin automatically. You can approve it manually.";
-  }
-  if (message.includes("DepositClaimInProgress")) {
-    return "This deposit is already being added. It should appear shortly.";
-  }
-  if (message.includes("Spark rail unavailable")) {
-    return "Bitcoin and Lightning payments are temporarily unavailable. Your money is safe.";
-  }
+if (message.includes("MaxDepositClaimFeeExceeded")) {
+  return "Network fees are too high to add this Bitcoin automatically. You can approve it manually.";
+}
+if (message.includes("DepositClaimInProgress")) {
+  return "This deposit is already being added. It should appear shortly.";
+}
+if (message.includes("Spark rail unavailable")) {
+  return "Bitcoin and Lightning payments are temporarily unavailable. Your money is safe.";
+}
 ```
 
 Place these before the existing generic fallback.
@@ -2663,7 +2742,7 @@ Automated tests cover routing and mapping. These require real funds on mainnet a
 - [ ] Block the Spark endpoint; confirm Liquid still works and the UI shows Spark unavailable
 - [ ] Block the Liquid endpoint; confirm Lightning still works and the UI shows Liquid unavailable
 
-**On receiving:** Spark collects the sender's fee (~0.15%) through route hints on the invoice. Sending wallets enforce their own maximum-fee ceilings, so a wallet with a tight ceiling could reject an otherwise valid invoice. Only paying *into* DGEN from each wallet exposes this, which is why both directions are listed.
+**On receiving:** Spark collects the sender's fee (~0.15%) through route hints on the invoice. Sending wallets enforce their own maximum-fee ceilings, so a wallet with a tight ceiling could reject an otherwise valid invoice. Only paying _into_ DGEN from each wallet exposes this, which is why both directions are listed.
 
 ## Deferred
 

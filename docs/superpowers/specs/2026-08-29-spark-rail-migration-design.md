@@ -18,13 +18,13 @@ transfer of L-BTC and L-USDT. Only the swap layer broke.
 
 ### Alternatives rejected
 
-| Option | Why not |
-|---|---|
-| Wait for Boltz | No ETA; suspension described as indefinite. |
-| Point the Liquid SDK at another swap provider | The swapper is compiled into the Rust SDK, not configurable. |
-| Self-host Boltz | Breez opened a PR to route mainnet swaps to a self-hosted instance (breez-sdk-liquid#1105, 12 Aug 2026) and closed it without merging. Would also mean operating financial infrastructure and inheriting the exposure that stopped Boltz. |
-| Cashu (`ecash.disabled/` in-tree) | Mints are custodial. Fails the non-custodial requirement. |
-| Migrate fully to Spark, drop Liquid | Rejected by the client: L-BTC and L-USDT send/receive must be retained. Spark has no Liquid support. |
+| Option                                        | Why not                                                                                                                                                                                                                                   |
+| --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Wait for Boltz                                | No ETA; suspension described as indefinite.                                                                                                                                                                                               |
+| Point the Liquid SDK at another swap provider | The swapper is compiled into the Rust SDK, not configurable.                                                                                                                                                                              |
+| Self-host Boltz                               | Breez opened a PR to route mainnet swaps to a self-hosted instance (breez-sdk-liquid#1105, 12 Aug 2026) and closed it without merging. Would also mean operating financial infrastructure and inheriting the exposure that stopped Boltz. |
+| Cashu (`ecash.disabled/` in-tree)             | Mints are custodial. Fails the non-custodial requirement.                                                                                                                                                                                 |
+| Migrate fully to Spark, drop Liquid           | Rejected by the client: L-BTC and L-USDT send/receive must be retained. Spark has no Liquid support.                                                                                                                                      |
 
 ### Decision
 
@@ -94,10 +94,10 @@ interface RailPayment {
   status: "pending" | "complete" | "failed";
   amountSat: number;
   feeSat: number;
-  timestamp: number;   // unix seconds
+  timestamp: number; // unix seconds
   method: "lightning" | "onchain" | "spark" | "liquid" | "usdt";
-  assetId?: string;    // Liquid only
-  raw: unknown;        // escape hatch to the source payment
+  assetId?: string; // Liquid only
+  raw: unknown; // escape hatch to the source payment
 }
 ```
 
@@ -120,24 +120,24 @@ Liquid adapter and does not enter the shared vocabulary.
 
 **Send** — the destination is parsed and routed:
 
-| Input | Rail |
-|---|---|
-| `bolt11Invoice`, `lightningAddress`, `lnurlPay`, `bip21` w/ lightning | Spark |
-| `bitcoinAddress`, `bitcoin:` URI | Spark |
-| Liquid address, `liquidnetwork:` URI | Liquid |
-| Asset send (L-USDT) | Liquid |
-| Ambiguous | Spark (the common path) |
+| Input                                                                 | Rail                    |
+| --------------------------------------------------------------------- | ----------------------- |
+| `bolt11Invoice`, `lightningAddress`, `lnurlPay`, `bip21` w/ lightning | Spark                   |
+| `bitcoinAddress`, `bitcoin:` URI                                      | Spark                   |
+| Liquid address, `liquidnetwork:` URI                                  | Liquid                  |
+| Asset send (L-USDT)                                                   | Liquid                  |
+| Ambiguous                                                             | Spark (the common path) |
 
 **Receive** — the selected method determines the rail, mapping onto the existing
 `types` in `utils.ts`:
 
-| Method | Rail |
-|---|---|
-| `lightning` | Spark |
-| `bitcoin` | Spark |
-| `liquid` | Liquid |
-| `usdt` | Liquid |
-| `bolt12` | Removed (see 6.2) |
+| Method      | Rail              |
+| ----------- | ----------------- |
+| `lightning` | Spark             |
+| `bitcoin`   | Spark             |
+| `liquid`    | Liquid            |
+| `usdt`      | Liquid            |
+| `bolt12`    | Removed (see 6.2) |
 
 Every rail selection is logged with its reason. When a payment goes somewhere
 unexpected, that must be diagnosable without reproducing it.
@@ -258,18 +258,18 @@ Covers the `bigint` conversion, timestamp units, and status mapping.
 
 **Lightning interoperability matrix.** Send and receive, both directions, against:
 
-| Wallet | Send to | Receive from |
-|---|---|---|
-| Wallet of Satoshi | | |
-| Breez | | |
-| Muun | | |
-| Bull Bitcoin | | |
-| Phoenix | | |
+| Wallet            | Send to | Receive from |
+| ----------------- | ------- | ------------ |
+| Wallet of Satoshi |         |              |
+| Breez             |         |              |
+| Muun              |         |              |
+| Bull Bitcoin      |         |              |
+| Phoenix           |         |              |
 
 Receiving is the half that matters most. Spark collects the sender's fee (~0.15%)
 through route hints on the invoice. Sending wallets enforce their own maximum-fee
 ceilings, so a wallet with a tight ceiling could reject an otherwise valid invoice.
-Only paying *into* DGEN from each wallet exposes this.
+Only paying _into_ DGEN from each wallet exposes this.
 
 **`tests/browser/wallet.spec.ts` is deleted.** It has drifted out of sync with the
 current `walletService` signatures, would fail today, and targets an architecture
@@ -291,11 +291,11 @@ from ever passing in CI.
 
 ## 10. Open items
 
-| Item | Owner | Blocks |
-|---|---|---|
-| Choose LNURL subdomain | Client | End-to-end address testing only |
-| Submit domain to Breez for allowlisting | Client | End-to-end address testing only |
-| Confirm `exchangeAssets` was never shipped | Client | 6.5 |
-| Custody wording sign-off | Client | Launch |
+| Item                                       | Owner  | Blocks                          |
+| ------------------------------------------ | ------ | ------------------------------- |
+| Choose LNURL subdomain                     | Client | End-to-end address testing only |
+| Submit domain to Breez for allowlisting    | Client | End-to-end address testing only |
+| Confirm `exchangeAssets` was never shipped | Client | 6.5                             |
+| Custody wording sign-off                   | Client | Launch                          |
 
 None block design or the majority of implementation.
