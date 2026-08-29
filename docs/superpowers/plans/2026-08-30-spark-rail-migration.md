@@ -355,7 +355,8 @@ export type RailEvent =
 
 export interface RailAdapter {
   readonly rail: Rail;
-  connect(mnemonic: string): Promise<void>;
+  /** `userId` lets the Liquid SDK detect account switches; Spark ignores it. */
+  connect(mnemonic: string, userId?: string): Promise<void>;
   disconnect(): Promise<void>;
   isConnected(): boolean;
   getBalance(): Promise<RailBalance>;
@@ -788,8 +789,11 @@ let listenerId: string | null = null;
 export const liquidAdapter: RailAdapter = {
   rail: "liquid",
 
-  async connect(mnemonic: string): Promise<void> {
-    await walletService.initWallet(mnemonic);
+  async connect(mnemonic: string, userId?: string): Promise<void> {
+    // userId must be forwarded: walletService uses it to detect an account
+    // switch and force a config refresh. Dropping it silently reuses the
+    // previous user's SDK session.
+    await walletService.initWallet(mnemonic, userId);
   },
 
   async disconnect(): Promise<void> {
@@ -951,7 +955,9 @@ export async function getSparkNetworkStatus(): Promise<sparkSdk.ServiceStatus> {
 export const sparkAdapter: RailAdapter = {
   rail: "spark",
 
-  async connect(mnemonic: string): Promise<void> {
+  async connect(mnemonic: string, _userId?: string): Promise<void> {
+    // _userId is part of the RailAdapter contract for Liquid's benefit;
+    // Spark derives its identity from the seed alone.
     if (connecting || sdk) return;
     try {
       connecting = true;
@@ -1366,10 +1372,13 @@ export function adapterFor(rail: Rail): RailAdapter {
  * rejection on one side is logged and swallowed rather than propagated.
  * Callers read each rail's state via `isConnected()`.
  */
-export async function connectRails(mnemonic: string): Promise<void> {
+export async function connectRails(
+  mnemonic: string,
+  userId?: string,
+): Promise<void> {
   const results = await Promise.allSettled([
-    sparkAdapter.connect(mnemonic),
-    liquidAdapter.connect(mnemonic),
+    sparkAdapter.connect(mnemonic, userId),
+    liquidAdapter.connect(mnemonic, userId),
   ]);
 
   results.forEach((result, i) => {
@@ -1692,20 +1701,45 @@ export const unclaimedDepositCount = derived(
 );
 ```
 
-- [ ] **Step 2: Verify the build**
+- [ ] **Step 2: Re-point the existing balance stores**
+
+`walletBalance` and `assetBalances` are exported from `src/lib/stores/wallet.ts` and consumed by `PaymentsList.svelte`, `Balance.svelte`, `SendAsset.svelte`, `AssetBalances.svelte`, and `Account.svelte`. After Task 10 the wallet store is no longer fed by SDK events, so those five components would show a frozen balance.
+
+Do **not** leave two sources of balance truth. In `src/lib/stores/wallet.ts`, replace the bodies of the two derived stores so they read from `railState`, keeping the export names exactly as they are:
+
+```ts
+import { railState } from "./rails";
+
+// Spendable Bitcoin lives on the Spark rail. Liquid balances are separate
+// and surfaced through `assetBalances` (spec 5).
+export const walletBalance = derived(railState, ($r) => $r.spark.balanceSat);
+
+export const assetBalances = derived(railState, ($r) => $r.liquid.assets);
+```
+
+Remove the now-unused `walletInfo`-based derivations that fed them. Leave every other export in the file alone.
+
+- [ ] **Step 3: Verify no component changed**
+
+Run: `git diff --name-only`
+Expected: only `src/lib/stores/rails.ts` and `src/lib/stores/wallet.ts`. If anything under `src/components/` appears, the export names drifted — restore them.
 
 Run: `bun run build`
 Expected: build succeeds.
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 4: Commit**
 
 ```bash
 bun run format
-git add src/lib/stores/rails.ts
+git add src/lib/stores/rails.ts src/lib/stores/wallet.ts
 git commit -m "feat(rails): add per-rail state store
 
 Separate balances per spec 5 — a blended figure would let a user see a
-total and then be refused for insufficient funds on a Lightning payment."
+total and then be refused for insufficient funds on a Lightning payment.
+
+walletBalance and assetBalances are re-pointed at the new store rather
+than duplicated, so the five components consuming them keep working
+unchanged and there is one source of balance truth."
 ```
 
 ---
@@ -1743,7 +1777,7 @@ Near the existing `import * as walletService from "$lib/walletService";` add:
 Both `await walletService.initWallet(mnemonic, userId);` calls (around lines 189 and 218) become:
 
 ```ts
-      await connectRails(mnemonic);
+      await connectRails(mnemonic, userId);
       setRailState("spark", adapters.spark.isConnected() ? "connected" : "unavailable");
       setRailState("liquid", adapters.liquid.isConnected() ? "connected" : "unavailable");
       await refreshBalances();
@@ -2092,11 +2126,15 @@ picks the rail from the destination."
 
 - [ ] **Step 1: Remove the BOLT12 receive option**
 
-In `src/lib/utils.ts`, the `types` object at line 540 contains `bolt12: "bolt12"`. Remove that entry — Spark cannot generate BOLT12 offers (spec 6.2).
+Spec 6.2 removes BOLT12 *generation*, not the ability to pay one or to display payments already received over it.
 
-Run `grep -rn "types.bolt12\|bolt12" src/` and remove each receive-side usage, including the `invoiceType === types.bolt12` branch in the receive page (around line 556) and the BOLT12 option in `InvoiceTypes.svelte`.
+**Keep the `bolt12` entry in the `types` object in `src/lib/utils.ts`.** It is still used by `src/routes/(app)/payment/[id]/+page.svelte:399` to render historical BOLT12 payments, and removing it breaks that screen.
 
-Leave send-side BOLT12 parsing alone: Spark can still *pay* a BOLT12 invoice, it just cannot issue one.
+Remove only the receive *option*:
+- the BOLT12 tile in `src/components/InvoiceTypes.svelte` (its styling block and button)
+- the `invoiceType === types.bolt12` branch in the receive page (around line 556)
+
+Leave the send side alone — `SendLightning.svelte:177,278` and `parse.ts:80` handle `bolt12Offer` for paying, which Spark supports.
 
 - [ ] **Step 2: Replace the three receive branches**
 
@@ -2133,7 +2171,7 @@ Expected: hits only inside `walletService.ts` itself, which is fine — they are
 
 ```bash
 bun run format
-git add src/routes/\(app\)/\[username\]/receive src/components/InvoiceTypes.svelte src/lib/utils.ts
+git add src/routes/\(app\)/\[username\]/receive src/components/InvoiceTypes.svelte
 git commit -m "feat(rails): route receive through the rail router, drop BOLT12
 
 Spark's receive methods are sparkAddress, sparkInvoice, bitcoinAddress
@@ -2261,25 +2299,52 @@ instead of silently renaming them."
 Append to `src/lib/rails/spark.ts`:
 
 ```ts
+/**
+ * A deposit the automatic ceiling would not cover.
+ *
+ * `requiredFeeSats` comes from the SDK's own claim error and is the exact
+ * fee needed. Never invent a ceiling from the deposit amount — that would
+ * permit a fee up to 100% of the deposit.
+ */
 export interface UnclaimedDeposit {
   txid: string;
   vout: number;
   amountSats: number;
   isMature: boolean;
-  claimError?: unknown;
+  requiredFeeSats?: number;
 }
 
 export async function listUnclaimedDeposits(): Promise<UnclaimedDeposit[]> {
   const sdk = getSparkSdk();
   if (!sdk) return [];
   const response = await sdk.listUnclaimedDeposits({});
-  return (response.deposits ?? []) as UnclaimedDeposit[];
+  return (response.deposits ?? []).map((d) => {
+    const error = d.claimError as
+      | { type: string; requiredFeeSats?: number }
+      | undefined;
+    return {
+      txid: d.txid,
+      vout: d.vout,
+      amountSats: Number(d.amountSats ?? 0),
+      isMature: Boolean(d.isMature),
+      requiredFeeSats:
+        error?.type === "maxDepositClaimFeeExceeded"
+          ? Number(error.requiredFeeSats ?? 0)
+          : undefined,
+    };
+  });
 }
 
 /**
- * Claim a deposit the automatic ceiling would not cover. `maxFeeSat` must
- * be at least the quoted fee, or the SDK returns MaxDepositClaimFeeExceeded
- * and the deposit waits for maturity instead.
+ * Claim a deposit the automatic ceiling would not cover.
+ *
+ * `maxFeeSat` must be at least the SDK's quoted fee, or the call returns
+ * MaxDepositClaimFeeExceeded and the deposit waits for maturity instead.
+ * Pass the deposit's `requiredFeeSats` — nothing larger.
+ *
+ * Note: the docs describe `fetchClaimDepositQuote`, which does NOT exist in
+ * pinned 0.23.0 (the docs track main). The claim error carries the fee
+ * instead. Revisit on the next SDK bump.
  */
 export async function claimDeposit(
   txid: string,
@@ -2327,8 +2392,8 @@ Create `src/components/DepositClaims.svelte`:
     claiming = key;
     error = null;
     try {
-      // Fee ceiling for a manual claim. The user is accepting the cost.
-      await claimDeposit(deposit.txid, deposit.vout, deposit.amountSats);
+      // Exactly the fee the SDK asked for. Never the deposit amount.
+      await claimDeposit(deposit.txid, deposit.vout, deposit.requiredFeeSats ?? 0);
       await load();
     } catch (e) {
       error = e instanceof Error ? e.message : "Claim failed";
@@ -2358,19 +2423,29 @@ Create `src/components/DepositClaims.svelte`:
     <ul class="flex flex-col gap-2">
       {#each deposits as deposit (deposit.txid + deposit.vout)}
         <li class="flex items-center justify-between gap-3">
-          <span class="font-mono text-sm">{deposit.amountSats} sats</span>
+          <span class="flex flex-col">
+            <span class="font-mono text-sm">{deposit.amountSats} sats</span>
+            {#if deposit.requiredFeeSats}
+              <span class="text-xs opacity-60"
+                >Fee to add now: {deposit.requiredFeeSats} sats</span
+              >
+            {/if}
+          </span>
           <button
             class="btn btn-sm btn-primary"
             disabled={claiming === `${deposit.txid}:${deposit.vout}` ||
-              !deposit.isMature}
+              !deposit.isMature ||
+              !deposit.requiredFeeSats}
             onclick={() => claim(deposit)}
           >
             {#if claiming === `${deposit.txid}:${deposit.vout}`}
               Adding…
             {:else if !deposit.isMature}
               Confirming
+            {:else if !deposit.requiredFeeSats}
+              Waiting
             {:else}
-              Add to balance
+              Add for {deposit.requiredFeeSats} sats
             {/if}
           </button>
         </li>
