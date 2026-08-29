@@ -15,7 +15,17 @@ export type RailPaymentMethod =
   | "onchain"
   | "spark"
   | "liquid"
-  | "usdt";
+  | "usdt"
+  /**
+   * A Spark token payment. Out of scope (spec 9) and should not occur, but
+   * Spark reuses one `amount: bigint` field across every payment method, and
+   * for tokens that integer is in the token's own units (governed by
+   * TokenMetadata.decimals), NOT sats. Mapping it into `amountSat` would
+   * render 100 USDB as 1 BTC. Such payments keep this method and an
+   * `amountSat` of 0 so they stay visible without displaying a fabricated
+   * figure; the true amount is in `raw`.
+   */
+  | "token";
 
 export interface RailPayment {
   /** Stable id. Spark: `payment.id`. Liquid: `txId`, falling back to a synthetic key. */
