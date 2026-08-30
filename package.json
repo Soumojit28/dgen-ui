@@ -79,7 +79,7 @@
     "format": "prettier --write .",
     "test": "svelte-kit sync && vitest run",
     "test:watch": "svelte-kit sync && vitest",
-    "typecheck:rails": "tsc -p tsconfig.rails.json"
+    "typecheck:rails": "bash scripts/typecheck-rails.sh"
   },
   "type": "module",
   "resolutions": {

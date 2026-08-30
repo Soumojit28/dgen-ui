@@ -6,5 +6,5 @@
     "checkJs": false,
     "types": ["vite/client"]
   },
-  "include": ["src/lib/rails/**/*.ts"]
+  "include": ["src/lib/rails/**/*.ts", "tests/stubs/sveltekit-ambient.d.ts"]
 }

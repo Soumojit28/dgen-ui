@@ -19,6 +19,18 @@ export default defineConfig({
   resolve: {
     alias: {
       $lib: new URL("./src/lib", import.meta.url).pathname,
+      // SvelteKit virtual modules that only the `sveltekit()` Vite plugin
+      // can resolve — this config intentionally uses the lighter `svelte()`
+      // plugin instead, so anything under test that transitively imports
+      // these needs a stub. See tests/stubs/*.ts for why.
+      "$env/dynamic/public": new URL(
+        "./tests/stubs/env-dynamic-public.ts",
+        import.meta.url,
+      ).pathname,
+      "$app/environment": new URL(
+        "./tests/stubs/app-environment.ts",
+        import.meta.url,
+      ).pathname,
     },
   },
 });
