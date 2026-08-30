@@ -54,6 +54,19 @@ describe("railForDestination", () => {
     );
   });
 
+  it("routes a lightning address whose name starts with a liquid prefix to spark", () => {
+    // "vt" is a two-character Liquid prefix; usernames collide with it easily.
+    expect(railForDestination("vtuber@getalby.com")).toBe("spark");
+  });
+
+  it("routes lq1-prefixed lightning addresses to spark", () => {
+    expect(railForDestination("lq1user@getalby.com")).toBe("spark");
+  });
+
+  it("routes ex1-prefixed lightning addresses to spark", () => {
+    expect(railForDestination("ex1ample@getalby.com")).toBe("spark");
+  });
+
   it("trims surrounding whitespace before deciding", () => {
     expect(railForDestination("  lnbc1500n1p3xyz  ")).toBe("spark");
   });

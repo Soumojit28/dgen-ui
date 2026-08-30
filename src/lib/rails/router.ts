@@ -25,7 +25,14 @@ function decideDestination(input: string): RailDecision {
     return { rail: "liquid", reason: "liquidnetwork URI" };
   }
 
-  if (LIQUID_PREFIXES.some((p) => lower.startsWith(p))) {
+  // A Liquid address never contains "@". Without this guard, a Lightning
+  // address whose username begins with a Liquid prefix — vtuber@..., or any
+  // name starting lq1/ex1/vjl/vt — is sent to the Liquid rail, which cannot
+  // pay it. "vt" is only two characters, so this is not a remote edge case.
+  if (
+    !trimmed.includes("@") &&
+    LIQUID_PREFIXES.some((p) => lower.startsWith(p))
+  ) {
     return { rail: "liquid", reason: "liquid address prefix" };
   }
 
