@@ -11,6 +11,7 @@ import {
   clearTrackedTxs,
 } from "../esplora/PollManager";
 import { trackOutgoingTx } from "../sendGate";
+import { railState } from "./rails";
 
 // Define interfaces locally to avoid import issues
 interface GetInfoResponse {
@@ -417,15 +418,20 @@ export const isWalletUnlocked = derived(
 
 export const walletInfo = derived(walletStore, ($wallet) => $wallet.info);
 
-export const walletBalance = derived(
-  walletInfo,
-  ($info) => $info?.walletInfo?.balanceSat || 0,
-);
+// Spendable Bitcoin lives on the Spark rail. Liquid balances are separate
+// and surfaced through `assetBalances` (spec 5). These read from railState
+// rather than walletInfo so there is ONE source of balance truth — after
+// the rails boot, walletStore is no longer fed by SDK events, and a second
+// derivation here would silently freeze at its last value.
+//
+// The export names and the shape of each `assetBalances` entry
+// ({ assetId, balanceSat, name?, ticker? }) are load-bearing: five call
+// sites read them (AssetBalances.svelte, SendAsset.svelte,
+// PaymentsList.svelte, send/liquid/[address]). Every one has a `|| 0`
+// fallback, so a shape change shows as zeroed balances with no error.
+export const walletBalance = derived(railState, ($r) => $r.spark.balanceSat);
 
-export const assetBalances = derived(
-  walletInfo,
-  ($info) => $info?.walletInfo?.assetBalances || [],
-);
+export const assetBalances = derived(railState, ($r) => $r.liquid.assets);
 
 export const isWalletConnecting = derived(
   walletStore,
