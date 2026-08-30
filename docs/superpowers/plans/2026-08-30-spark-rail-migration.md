@@ -490,6 +490,19 @@ describe("railForDestination", () => {
     );
   });
 
+  it("routes a lightning address whose name starts with a liquid prefix to spark", () => {
+    // "vt" is a two-character Liquid prefix; usernames collide with it easily.
+    expect(railForDestination("vtuber@getalby.com")).toBe("spark");
+  });
+
+  it("routes lq1-prefixed lightning addresses to spark", () => {
+    expect(railForDestination("lq1user@getalby.com")).toBe("spark");
+  });
+
+  it("routes ex1-prefixed lightning addresses to spark", () => {
+    expect(railForDestination("ex1ample@getalby.com")).toBe("spark");
+  });
+
   it("trims surrounding whitespace before deciding", () => {
     expect(railForDestination("  lnbc1500n1p3xyz  ")).toBe("spark");
   });
@@ -563,7 +576,14 @@ function decideDestination(input: string): RailDecision {
     return { rail: "liquid", reason: "liquidnetwork URI" };
   }
 
-  if (LIQUID_PREFIXES.some((p) => lower.startsWith(p))) {
+  // A Liquid address never contains "@". Without this guard, a Lightning
+  // address whose username begins with a Liquid prefix — vtuber@..., or any
+  // name starting lq1/ex1/vjl/vt — is sent to the Liquid rail, which cannot
+  // pay it. "vt" is only two characters, so this is not a remote edge case.
+  if (
+    !trimmed.includes("@") &&
+    LIQUID_PREFIXES.some((p) => lower.startsWith(p))
+  ) {
     return { rail: "liquid", reason: "liquid address prefix" };
   }
 
@@ -625,7 +645,7 @@ Note the ordering: Liquid checks run first because `lq1` would otherwise not be 
 - [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `bun run test src/lib/rails/router.test.ts`
-Expected: PASS — 19 tests.
+Expected: PASS — 22 tests.
 
 - [ ] **Step 5: Commit**
 
@@ -635,7 +655,7 @@ git add src/lib/rails/router.ts src/lib/rails/router.test.ts
 git commit -m "feat(rails): add pure rail router
 
 Every 'which SDK?' decision lives here and nowhere else. Pure function,
-so all 19 routing cases are tested without an SDK, network, or funds.
+so all 22 routing cases are tested without an SDK, network, or funds.
 Each decision logs its reason for post-hoc diagnosis."
 ```
 
