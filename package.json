@@ -78,7 +78,8 @@
     "lint": "prettier --check .",
     "format": "prettier --write .",
     "test": "svelte-kit sync && vitest run",
-    "test:watch": "svelte-kit sync && vitest"
+    "test:watch": "svelte-kit sync && vitest",
+    "typecheck:rails": "tsc -p tsconfig.rails.json"
   },
   "type": "module",
   "resolutions": {

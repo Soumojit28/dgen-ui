@@ -36,6 +36,9 @@ jobs:
       - name: Check formatting
         run: bun run lint
 
+      - name: Typecheck rails
+        run: bun run typecheck:rails
+
       - name: Run tests
         run: bun run test
 
