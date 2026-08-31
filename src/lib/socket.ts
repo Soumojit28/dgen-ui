@@ -222,13 +222,15 @@ export const messages = (data) => ({
         // LNURL-Pay info request - return min/max amounts
         logWebhook("Handling lnurlpay_info request");
 
-        const { fetchLightningLimits } = await import("$lib/walletService");
-        const limits = await fetchLightningLimits();
-
+        // LNURL-Pay requires numeric bounds in the response, but there is
+        // no standing limits call to source them from any more — Spark
+        // reports real fees and constraints when the payment is prepared,
+        // not ahead of time. These are generous static placeholders, not a
+        // business limit.
         const response = {
           callback: webhookData.callback_url,
-          maxSendable: limits.receive.maxSat * 1000, // Convert to msat
-          minSendable: limits.receive.minSat * 1000,
+          maxSendable: 100_000_000_000, // 100,000,000 sats, in msat
+          minSendable: 1_000, // 1 sat, in msat
           metadata: JSON.stringify([["text/plain", "Pay to DGEN user"]]),
           tag: "payRequest",
         };

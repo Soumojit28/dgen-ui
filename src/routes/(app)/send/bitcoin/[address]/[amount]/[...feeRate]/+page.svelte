@@ -7,7 +7,7 @@
   import { goto } from "$app/navigation";
   import { rate } from "$lib/store";
   import { walletBalance } from "$lib/stores/wallet";
-  import { fetchOnchainLimits, recommendedFees } from "$lib/walletService";
+  import { recommendedFees } from "$lib/walletService";
   import { prepareSend, sendPayment } from "$lib/rails";
 
   import Amount from "$comp/Amount.svelte";
@@ -28,7 +28,6 @@
   let submitting = $state(false);
   let error = $state("");
   let preparedPayment = $state(null);
-  let limits = $state(null);
   let fee = $state(0);
   let fees = $state({
     hourFee: 5, // Economy
@@ -86,34 +85,6 @@
     try {
       loading = true;
       error = "";
-
-      // Fetch onchain limits with timeout
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(
-          () =>
-            reject(
-              new Error(
-                "Request timeout - network may be slow or rate limited",
-              ),
-            ),
-          timeout,
-        ),
-      );
-
-      limits = await Promise.race([fetchOnchainLimits(), timeoutPromise]);
-      console.log("Onchain limits:", limits);
-
-      // Validate amount against limits
-      if (amount < limits.send.minSat) {
-        error = `Minimum amount is ${limits.send.minSat} sats`;
-        loading = false;
-        return;
-      }
-      if (amount > limits.send.maxSat) {
-        error = `Maximum amount is ${limits.send.maxSat} sats`;
-        loading = false;
-        return;
-      }
 
       // Prepare the send via the rail router. The router sends the Bitcoin
       // address to Spark, which handles the withdrawal internally — Spark

@@ -790,10 +790,6 @@ export const walletOperations = {
     return result;
   },
 
-  async fetchLightningLimits() {
-    return await walletService.fetchLightningLimits();
-  },
-
   async fetchFiatRates() {
     return await walletService.fetchFiatRates();
   },

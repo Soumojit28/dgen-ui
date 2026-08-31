@@ -1,10 +1,6 @@
 <script>
   import { onDestroy, onMount } from "svelte";
-  import {
-    parseInput,
-    fetchLightningLimits,
-    isConnected,
-  } from "$lib/walletService";
+  import { parseInput, isConnected } from "$lib/walletService";
   import { prepareSend, sendPayment } from "$lib/rails";
   import { fail, loc, sats } from "$lib/utils";
   import { goto } from "$app/navigation";
@@ -29,9 +25,12 @@
   let isAmountlessInvoice = $state(false);
   let amountSat = $state(1000); // Default amount for Lightning addresses
   let comment = $state("");
-  let limits = $state(null);
-  let minSendable = $state(0);
-  let maxSendable = $state(0);
+  // Spark reports fees and constraints at prepare time, so these are only
+  // populated when the destination itself carries a sendable range (LNURL);
+  // otherwise they stay wide open and the actual bounds are enforced by
+  // prepareSend/sendPayment.
+  let minSendable = $state(1);
+  let maxSendable = $state(Infinity);
   let gateWaiting = $derived($sendGateStore.status === "waiting");
   let lnUrlData = $derived(
     parsed?.type === "lnUrlPay" ? parsed.data : parsed?.lnUrlPay?.data,
@@ -84,8 +83,8 @@
       preparedPayment = null;
       isLightningAddress = false;
       isAmountlessInvoice = false;
-      minSendable = 0;
-      maxSendable = 0;
+      minSendable = 1;
+      maxSendable = Infinity;
 
       devLog("[SendLightning] Attempting to parse payment input");
 
@@ -106,21 +105,10 @@
 
         if (!parsed.invoice.amountMsat) {
           isAmountlessInvoice = true;
-
-          const limitsResponse = await fetchLightningLimits();
-          limits = limitsResponse;
-          const networkMinSat = Number(limitsResponse.send.minSat);
-          const networkMaxSat = Number(limitsResponse.send.maxSat);
-
-          minSendable = networkMinSat;
-          maxSendable = networkMaxSat;
-          amountSat = Math.max(1000, networkMinSat);
+          amountSat = 1000;
 
           devLog(
-            "[SendLightning] Amountless invoice detected, amount range:",
-            minSendable,
-            "-",
-            maxSendable,
+            "[SendLightning] Amountless invoice detected, awaiting amount",
           );
           loading = false;
           return;
@@ -135,27 +123,14 @@
         isLightningAddress = true;
         isAmountlessInvoice = false;
 
-        // Fetch network limits
-        const limitsResponse = await fetchLightningLimits();
-        limits = limitsResponse;
-
         // Get the data object - could be at parsed.data or parsed.lnUrlPay.data
         const lnUrlData = parsed.data || parsed.lnUrlPay?.data;
 
-        // Calculate sendable range (msat to sat)
-        const lnurlMinSat = Math.floor(lnUrlData.minSendable / 1000);
-        const lnurlMaxSat = Math.floor(lnUrlData.maxSendable / 1000);
-        const networkMinSat = Number(limitsResponse.send.minSat);
-        const networkMaxSat = Number(limitsResponse.send.maxSat);
-
-        minSendable = Math.min(
-          Math.max(networkMinSat, lnurlMinSat),
-          networkMaxSat,
-        );
-        maxSendable = Math.max(
-          networkMinSat,
-          Math.min(networkMaxSat, lnurlMaxSat),
-        );
+        // Sendable range comes from the LNURL data itself; Spark enforces
+        // its own network limits at prepare time rather than a standing
+        // limits call.
+        minSendable = Math.floor(lnUrlData.minSendable / 1000);
+        maxSendable = Math.floor(lnUrlData.maxSendable / 1000);
 
         // Set default amount to minimum
         amountSat = minSendable;
@@ -171,25 +146,15 @@
         isLightningAddress = true;
         isAmountlessInvoice = false;
 
-        // Fetch network limits
-        const limitsResponse = await fetchLightningLimits();
-        limits = limitsResponse;
-
-        const networkMinSat = Number(limitsResponse.send.minSat);
-        const networkMaxSat = Number(limitsResponse.send.maxSat);
-
-        minSendable = networkMinSat;
-        maxSendable = networkMaxSat;
+        // No standing limits call; Spark reports fees and constraints at
+        // prepare time. Keep the range wide open here.
+        minSendable = 1;
+        maxSendable = Infinity;
 
         // Set default amount to a reasonable value
-        amountSat = Math.max(1000, networkMinSat);
+        amountSat = 1000;
 
-        devLog(
-          "[SendLightning] BOLT12 offer detected, amount range:",
-          minSendable,
-          "-",
-          maxSendable,
-        );
+        devLog("[SendLightning] BOLT12 offer detected, awaiting amount");
       } else {
         error = `Unsupported payment type: ${parsed?.type || "unknown"}`;
       }
