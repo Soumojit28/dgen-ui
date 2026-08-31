@@ -189,9 +189,15 @@ export async function createReceiveRequest(
 
   const prepared = await walletService.prepareReceivePayment({
     paymentMethod: "liquidAddress",
+    // An L-BTC receive takes the { type: "bitcoin", payerAmountSat } variant.
+    // Falling through to undefined here produced a bare address with no
+    // amount, so a user asking to receive a specific sum got an address the
+    // sender had to fill in by hand.
     amount: opts.assetId
       ? { type: "asset", assetId: opts.assetId, payerAmount: opts.amountSat }
-      : undefined,
+      : opts.amountSat !== undefined
+        ? { type: "bitcoin", payerAmountSat: opts.amountSat }
+        : undefined,
   } as any);
   const response = await walletService.receivePayment({
     prepareResponse: prepared,
