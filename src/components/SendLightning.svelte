@@ -2,13 +2,10 @@
   import { onDestroy, onMount } from "svelte";
   import {
     parseInput,
-    prepareSendPayment,
-    sendPayment,
-    prepareLnurlPay,
-    lnurlPay,
     fetchLightningLimits,
     isConnected,
   } from "$lib/walletService";
+  import { prepareSend, sendPayment } from "$lib/rails";
   import { fail, loc, sats } from "$lib/utils";
   import { goto } from "$app/navigation";
   import Spinner from "./Spinner.svelte";
@@ -129,15 +126,10 @@
           return;
         }
 
-        const prepareRequest = {
-          destination: parsed.invoice.bolt11,
-          amount: {
-            type: "bitcoin",
-            receiverAmountSat: Math.floor(parsed.invoice.amountMsat / 1000),
-          },
-        };
-
-        preparedPayment = await prepareSendPayment(prepareRequest);
+        preparedPayment = await prepareSend(
+          parsed.invoice.bolt11,
+          Math.floor(parsed.invoice.amountMsat / 1000),
+        );
       } else if (parsed?.type === "lnUrlPay" || parsed?.lnUrlPay) {
         // Handle Lightning Address / LNURL-Pay
         isLightningAddress = true;
@@ -253,39 +245,20 @@
         if (!lnUrlData) {
           throw new Error("Missing LNURL pay data");
         }
-        // Prepare LNURL payment
-        const prepareRequest = {
-          data: lnUrlData,
-          amount: {
-            type: "bitcoin",
-            receiverAmountSat: safeAmountSat,
-          },
-          comment: comment || undefined,
-          validateSuccessActionUrl: true,
-        };
-
-        preparedPayment = await prepareLnurlPay(prepareRequest);
+        // Prepare LNURL payment. Spark's prepareSendPayment accepts a
+        // Lightning address or LNURL directly as `{ type: "input" }`, so
+        // the original `payreq` string is passed straight through.
+        preparedPayment = await prepareSend(payreq, safeAmountSat);
         devLog("[SendLightning] LNURL payment prepared");
       } else if (isAmountlessInvoice && parsed?.invoice) {
-        preparedPayment = await prepareSendPayment({
-          destination: parsed.invoice.bolt11,
-          amount: {
-            type: "bitcoin",
-            receiverAmountSat: safeAmountSat,
-          },
-        });
+        preparedPayment = await prepareSend(
+          parsed.invoice.bolt11,
+          safeAmountSat,
+        );
         devLog("[SendLightning] Amountless invoice prepared");
       } else if (parsed.type === "bolt12Offer" || parsed.offer) {
         // Prepare BOLT12 payment
-        const prepareRequest = {
-          destination: parsed.offer.offer,
-          amount: {
-            type: "bitcoin",
-            receiverAmountSat: safeAmountSat,
-          },
-        };
-
-        preparedPayment = await prepareSendPayment(prepareRequest);
+        preparedPayment = await prepareSend(parsed.offer.offer, safeAmountSat);
         devLog("[SendLightning] BOLT12 payment prepared");
       }
     } catch (e) {
@@ -342,31 +315,23 @@
 
       if (parsed?.type === "lnUrlPay" || parsed?.lnUrlPay) {
         // Execute LNURL payment
-        const lnurlPayRequest = {
-          prepareResponse: preparedPayment,
-        };
-        result = await lnurlPay(lnurlPayRequest);
+        result = await sendPayment(preparedPayment);
         devLog("[SendLightning] LNURL payment sent");
 
         // Navigate to success page
-        if (result?.payment?.txId) {
-          await goto(`/payment/${result.payment.txId}`);
+        if (result?.id) {
+          await goto(`/payment/${result.id}`);
         } else {
           await goto("/payments");
         }
       } else {
         // Execute regular Lightning payment or BOLT12 payment
-        const sendRequest = {
-          prepareResponse: preparedPayment,
-        };
-        result = await sendPayment(sendRequest);
+        result = await sendPayment(preparedPayment);
         devLog("[SendLightning] Lightning payment sent");
 
-        // Navigate to success page using txId or paymentHash
-        const paymentId =
-          result.payment.txId || result.payment.details?.paymentHash;
-        if (paymentId) {
-          await goto(`/payment/${paymentId}`);
+        // Navigate to success page
+        if (result?.id) {
+          await goto(`/payment/${result.id}`);
         } else {
           await goto("/payments");
         }
@@ -480,11 +445,11 @@
               </div>
             {/if}
 
-            {#if preparedPayment?.feesSat !== undefined}
+            {#if preparedPayment?.feeSat !== undefined}
               <div class="pt-2 border-t border-white/10">
                 <p class="text-sm text-white/60 mb-1">Network Fee</p>
                 <p class="font-mono">
-                  ⚡ {formatSats(Number(preparedPayment.feesSat))} sats
+                  ⚡ {formatSats(Number(preparedPayment.feeSat))} sats
                 </p>
               </div>
             {/if}
@@ -532,11 +497,11 @@
               </div>
             {/if}
 
-            {#if preparedPayment?.feesSat}
+            {#if preparedPayment?.feeSat}
               <div>
                 <p class="text-sm text-white/60 mb-1">Network Fee</p>
                 <p class="font-mono">
-                  ⚡ {formatSats(preparedPayment.feesSat)} sats
+                  ⚡ {formatSats(preparedPayment.feeSat)} sats
                 </p>
               </div>
             {/if}

@@ -4,6 +4,8 @@ import { decode } from "$lib/bip21";
 import { get, post } from "$lib/utils";
 import { redirect } from "@sveltejs/kit";
 import * as walletService from "$lib/walletService";
+import { adapters } from "$lib/rails";
+import { getSparkSdk } from "$lib/rails/spark";
 
 export default async (s, host) => {
   if (!s) return;
@@ -30,10 +32,16 @@ export default async (s, host) => {
   if (["note", "nevent"].some((p) => t.startsWith(p))) redirect(307, `/e/${t}`);
   if (["nprofile", "npub"].some((p) => t.startsWith(p))) redirect(307, `/${t}`);
 
-  // Try to parse with Breez SDK if connected (client-side only)
-  if (browser && walletService.isConnected()) {
+  // Try to parse with a connected SDK if available (client-side only)
+  if (
+    browser &&
+    (adapters.spark.isConnected() || adapters.liquid.isConnected())
+  ) {
     try {
-      const parsed = await walletService.parseInput(t);
+      const sdk = getSparkSdk();
+      const parsed = sdk
+        ? await sdk.parse(t)
+        : await walletService.parseInput(t);
 
       switch (parsed.type) {
         case "bitcoinAddress": {
@@ -51,14 +59,24 @@ export default async (s, host) => {
             }
           }
 
-          const address = parsed.address.address;
+          // Spark's InputType flattens BitcoinAddressDetails onto the union
+          // member, so `parsed.address` is already the address string.
+          // Liquid's InputType nests it: `parsed.address` is an object whose
+          // own `.address` is the string. Handle both shapes.
+          const address =
+            typeof parsed.address === "string"
+              ? parsed.address
+              : parsed.address.address;
           let route = `/send/bitcoin/${address}`;
           if (amount) route += `/${Math.round(amount * 100000000)}`;
           redirect(307, route);
           break;
         }
 
-        case "bolt11": {
+        // "bolt11" is Liquid's discriminant, "bolt11Invoice" is Spark's —
+        // both SDKs can be the active parser here, so both are handled.
+        case "bolt11":
+        case "bolt11Invoice": {
           // Check if this is an invoice in our database first
           let foundInvoice = null;
           try {
@@ -83,19 +101,25 @@ export default async (s, host) => {
           break;
         }
 
-        case "lnUrlPay": {
+        // "lnUrlPay" is Liquid's discriminant, "lnurlPay" is Spark's.
+        case "lnUrlPay":
+        case "lnurlPay": {
           // LNURL-Pay and Lightning addresses - redirect to LNURL handler
           redirect(307, `/ln/${t}`);
           break;
         }
 
-        case "lnUrlWithdraw": {
+        // "lnUrlWithdraw" is Liquid's discriminant, "lnurlWithdraw" is Spark's.
+        case "lnUrlWithdraw":
+        case "lnurlWithdraw": {
           // LNURL-Withdraw - redirect to LNURL handler
           redirect(307, `/ln/${t}`);
           break;
         }
 
-        case "lnUrlAuth": {
+        // "lnUrlAuth" is Liquid's discriminant, "lnurlAuth" is Spark's.
+        case "lnUrlAuth":
+        case "lnurlAuth": {
           // LNURL-Auth - redirect to LNURL handler
           redirect(307, `/ln/${t}`);
           break;

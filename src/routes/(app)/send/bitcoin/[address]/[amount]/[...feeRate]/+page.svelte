@@ -7,12 +7,8 @@
   import { goto } from "$app/navigation";
   import { rate } from "$lib/store";
   import { walletBalance } from "$lib/stores/wallet";
-  import {
-    fetchOnchainLimits,
-    preparePayOnchain,
-    payOnchain,
-    recommendedFees,
-  } from "$lib/walletService";
+  import { fetchOnchainLimits, recommendedFees } from "$lib/walletService";
+  import { prepareSend, sendPayment } from "$lib/rails";
 
   import Amount from "$comp/Amount.svelte";
 
@@ -20,6 +16,11 @@
 
   // Get params from server
   let { address, amount } = $derived(data);
+  // NOTE: feeRate (and the preset/custom sat-per-vB UI below) no longer
+  // affects the prepared payment. `$lib/rails`' prepareSend(destination,
+  // amountSat) has no fee-rate parameter — Spark picks its own withdrawal
+  // fee. Left in place pending a follow-up decision on whether to remove
+  // this control or extend the rail API to accept it.
   let feeRate = $state(data.feeRate || 20);
 
   // State for UI
@@ -114,17 +115,10 @@
         return;
       }
 
-      // Prepare onchain payment with optional fee rate
-      const prepareRequest = {
-        amount: {
-          type: "bitcoin",
-          receiverAmountSat: amount,
-        },
-        ...(feeRate && { feeRateSatPerVbyte: feeRate }),
-      };
-
-      console.log("Prepare request:", prepareRequest);
-
+      // Prepare the send via the rail router. The router sends the Bitcoin
+      // address to Spark, which handles the withdrawal internally — Spark
+      // chooses its own withdrawal fee, so a custom sat/vB rate is no
+      // longer forwarded here (see feeRate note below).
       const prepareTimeoutPromise = new Promise((_, reject) =>
         setTimeout(
           () =>
@@ -138,13 +132,13 @@
       );
 
       preparedPayment = await Promise.race([
-        preparePayOnchain(prepareRequest),
+        prepareSend(address.trim(), amount),
         prepareTimeoutPromise,
       ]);
       console.log("Prepare response:", preparedPayment);
 
       // Extract fee information
-      fee = preparedPayment.totalFeesSat || 0;
+      fee = preparedPayment.feeSat || 0;
     } catch (e) {
       console.error("Onchain payment preparation error:", e);
       const errorMsg = e.message || "Failed to prepare payment";
@@ -185,19 +179,13 @@
       error = "";
 
       // Send the onchain payment
-      const payRequest = {
-        address: address.trim(),
-        prepareResponse: preparedPayment,
-      };
-
-      console.log("Pay request:", payRequest);
-      const response = await payOnchain(payRequest);
-      console.log("Payment response:", response);
+      const payment = await sendPayment(preparedPayment);
+      console.log("Payment response:", payment);
 
       // Check if payment was successful
-      if (response.payment) {
+      if (payment?.id) {
         // Navigate to success page
-        await goto(`/sent/${response.payment.id}`);
+        await goto(`/sent/${payment.id}`);
       } else {
         throw new Error("Payment failed - no payment ID returned");
       }
