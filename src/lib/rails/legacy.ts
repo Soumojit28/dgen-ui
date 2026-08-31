@@ -52,6 +52,10 @@ export function toLegacyPayment(payment: RailPayment): LegacyPayment {
     feesSat: payment.feeSat ?? 0,
     amountSat: payment.amountSat ?? 0,
     txId,
-    details: payment.raw,
+    // The SDK's own PaymentDetails, one level inside raw. Consumers read
+    // details.type / .assetId / .assetInfo.amount / .description; handing them
+    // the whole payment makes every one of those undefined, which silently
+    // breaks USDT amount display and history search.
+    details: raw.details,
   };
 }

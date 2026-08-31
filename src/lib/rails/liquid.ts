@@ -72,6 +72,13 @@ export const liquidAdapter: RailAdapter = {
 
   async getBalance(): Promise<RailBalance> {
     const info = await walletService.getWalletInfo();
+    // getWalletInfo() swallows its own errors and returns null, so a
+    // transient failure is indistinguishable from a real zero here. Throwing
+    // lets refreshBalances() keep the last known good figure instead of
+    // overwriting it with 0 and still reporting "connected".
+    if (!info && walletService.isConnected()) {
+      throw new Error("Liquid balance fetch failed");
+    }
     const wallet = (info as any)?.walletInfo;
     return {
       rail: "liquid",
@@ -104,10 +111,13 @@ export const liquidAdapter: RailAdapter = {
           handler({ type: "synced", rail: "liquid" });
           break;
         case "paymentSucceeded":
-        case "paymentWaitingConfirmation":
           if (payment)
             handler({ type: "paymentSucceeded", rail: "liquid", payment });
           break;
+        // Not settled yet. mapStatus() already treats this as pending, and
+        // telling the user "received" for funds that may still fail or need
+        // a refund is worse than telling them late.
+        case "paymentWaitingConfirmation":
         case "paymentPending":
         case "paymentWaitingFeeAcceptance":
           if (payment)

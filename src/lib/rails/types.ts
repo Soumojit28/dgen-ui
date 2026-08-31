@@ -52,7 +52,19 @@ export interface RailBalance {
   /** Integer sats. For Liquid this is the L-BTC balance. */
   balanceSat: number;
   /** Liquid only: per-asset balances, including USDT. */
-  assets?: Array<{ assetId: string; balance: number }>;
+  assets?: Array<{
+    assetId: string;
+    /**
+     * The sats figure. The SDK's AssetBalance also has an optional `balance`
+     * field that is NOT sats — do not substitute it. Five UI call sites read
+     * `.balanceSat`, `.name` and `.ticker` off these entries, each with a
+     * `|| 0` fallback, so a shape drift here shows as zeroed balances rather
+     * than an error.
+     */
+    balanceSat: number;
+    name?: string;
+    ticker?: string;
+  }>;
 }
 
 export type RailEvent =

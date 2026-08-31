@@ -39,8 +39,19 @@ describe("toLegacyPayment", () => {
     );
   });
 
-  it("surfaces the source object as details for rail-specific reads", () => {
-    expect(toLegacyPayment(base).details).toEqual({ some: "sdk object" });
+  it("surfaces the SDK's nested PaymentDetails, not the whole payment", () => {
+    // Consumers read details.type / .assetId / .assetInfo.amount, which live
+    // one level inside the raw payment. Handing them the whole payment makes
+    // every one of those undefined and silently breaks USDT amounts.
+    const withDetails = toLegacyPayment({
+      ...base,
+      raw: { amount: 1n, details: { type: "liquid", assetId: "abc" } },
+    });
+    expect(withDetails.details).toEqual({ type: "liquid", assetId: "abc" });
+  });
+
+  it("leaves details undefined when the raw payment carries none", () => {
+    expect(toLegacyPayment({ ...base, raw: {} }).details).toBeUndefined();
   });
 
   it("carries a txId only when the raw payment had one", () => {

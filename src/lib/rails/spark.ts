@@ -150,8 +150,15 @@ export const sparkAdapter: RailAdapter = {
 
   async disconnect(): Promise<void> {
     if (!sdk) return;
-    await sdk.disconnect();
-    sdk = null;
+    try {
+      await sdk.disconnect();
+    } finally {
+      // Null it regardless. If disconnect() rejects and we leave sdk set,
+      // isConnected() keeps reporting true for a torn-down session and the
+      // connect() guard below no-ops forever — the wallet is stuck until a
+      // page reload. walletService does the same on the Liquid side.
+      sdk = null;
+    }
     sdkLogger.info("[rails/spark] disconnected");
   },
 
