@@ -2329,6 +2329,21 @@ The `invoiceType` values already match the router's expected keys (`lightning`, 
 
 Lines around 314 and 344 call `fetchOnchainLimits` and `fetchLightningLimits` in a `Promise.all`. These are Liquid swap limits and are meaningless for Spark. Remove both calls and any UI that displays them.
 
+**These functions are called from six files, not just this one**, and they are now a crash risk rather than merely stale: `walletService.fetchLightningLimits` and `fetchOnchainLimits` both `throw new Error("SDK not initialized")` when the Liquid SDK is null — which the degradation model introduced in Task 10 explicitly permits. If Liquid fails to connect while Spark succeeds, any screen still calling them throws on a path the user expects to work.
+
+Handle every call site:
+
+| File                                                                         | Sites              | Action                                                                  |
+| ---------------------------------------------------------------------------- | ------------------ | ----------------------------------------------------------------------- |
+| `src/routes/(app)/[username]/receive/+page.svelte`                           | 315, 316, 345, 346 | Remove (this task)                                                      |
+| `src/components/SendLightning.svelte`                                        | 113, 147, 183      | Remove; Lightning is Spark now, and Spark surfaces fees at prepare time |
+| `src/routes/(app)/send/bitcoin/[address]/[amount]/[...feeRate]/+page.svelte` | 102                | Remove; on-chain BTC is Spark now                                       |
+| `src/components/BuyBitcoin.svelte`                                           | 92                 | Remove                                                                  |
+| `src/lib/socket.ts`                                                          | 225, 226           | Remove                                                                  |
+| `src/lib/stores/wallet.ts`                                                   | 793                | Remove the wrapper method                                               |
+
+Removing the limits removes an amount-validation step. That is accepted: Spark reports fees and constraints from `prepareSendPayment` at the moment of sending, which is both later and more accurate than a standing limits call. Do not invent a replacement validation here.
+
 If a minimum-amount hint is still wanted, Spark surfaces fees at prepare time rather than as standing limits; leave that out for now.
 
 - [ ] **Step 4: Verify the build**
