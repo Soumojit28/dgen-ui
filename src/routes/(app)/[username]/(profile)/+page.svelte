@@ -7,8 +7,6 @@
   import Balance from "$comp/Balance.svelte";
   import BuyBitcoin from "$comp/BuyBitcoin.svelte";
   import InstallInstructionsModal from "$comp/InstallInstructionsModal.svelte";
-  import RefundablesBanner from "$comp/RefundablesBanner.svelte";
-  import { refundablesStore } from "$lib/stores/refundables";
   import { t } from "$lib/translations";
   import { installPrompt, password } from "$lib/store";
   import { afterNavigate, preloadData } from "$app/navigation";
@@ -41,8 +39,6 @@
           // Refresh wallet data
           await walletStore.refresh();
           await txStore.refresh();
-          // Refresh refundables on home load
-          await refundablesStore.refresh();
         } else {
           // The layout will initialize the wallet and trigger updates
         }
@@ -373,9 +369,7 @@
         </div>
       {/if}
 
-      {#if user?.id && user.id === subject.id}
-        <RefundablesBanner />
-      {/if}
+      {#if user?.id && user.id === subject.id}{/if}
 
       <!-- Syncing Indicator -->
       <!-- TODO: Re-enable syncing indicator later -->

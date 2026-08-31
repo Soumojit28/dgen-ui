@@ -224,12 +224,6 @@
                 Last refund txid: {p.details.refundTxId}
               </div>
             {/if}
-            <button
-              class="btn btn-primary btn-sm w-full sm:w-auto"
-              onclick={() => goto("/refunds")}
-            >
-              {p?.details?.refundTxId ? "Retry Refund" : "Refund"}
-            </button>
           </div>
         </div>
       </div>
@@ -487,14 +481,6 @@
                 </div>
               </div>
             </div>
-
-            <button
-              class="btn btn-warning btn-lg w-full gap-2"
-              onclick={() => goto("/refunds")}
-            >
-              <iconify-icon icon="ph:arrow-u-up-left" width="24"></iconify-icon>
-              <span>{$t("payments.refund") || "Refund Payment"}</span>
-            </button>
           </div>
         {/if}
       </div>
