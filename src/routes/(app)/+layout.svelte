@@ -1,6 +1,7 @@
 <script>
   import { SvelteToast } from "@zerodevx/svelte-toast";
   import { onDestroy, onMount, untrack } from "svelte";
+  import { get } from "svelte/store";
   import { PUBLIC_DGEN_URL } from "$env/static/public";
   import { close, connect, send, socket } from "$lib/socket";
   import {
@@ -38,6 +39,7 @@
     setRailState,
     refreshBalances,
     setUnclaimedDeposits,
+    railState,
   } from "$lib/stores/rails";
   import { notifyPaymentReceived } from "$lib/stores/paymentEvents";
 
@@ -50,7 +52,6 @@
   let walletInitError = $state(null);
   let walletInitialized = $state(false); // Track if wallet has been initialized
   let railsUnsubscribe = null;
-  let lastSyncTime = 0;
   let syncDebounceTimer = null;
   let currentUserId = null; // Track current user to detect changes
   let isSecondaryTab = $state(false); // Track if this is a secondary tab (no SDK instance)
@@ -94,6 +95,20 @@
       initializeBrowserWallet();
     }
   });
+
+  // Refresh rail balances, then broadcast the new Spark balance to other
+  // tabs. Only the tab holding the wallet lock receives SDK events, so a
+  // secondary tab has no other way to learn a balance changed — see the
+  // WALLET_UPDATED handler in tabSync.onMessage above. A broadcast failure
+  // must never break payment handling, hence the isolated try/catch.
+  const refreshAndBroadcast = async () => {
+    await refreshBalances();
+    try {
+      tabSync.broadcastWalletUpdate(get(railState).spark.balanceSat);
+    } catch (e) {
+      console.warn("[Layout] Balance broadcast failed:", e);
+    }
+  };
 
   const checkBrowserCompatibility = () => {
     if (!browser) return false;
@@ -270,7 +285,7 @@
               return;
             }
             if (event.type === "balanceChanged" || event.type === "synced") {
-              void refreshBalances();
+              void refreshAndBroadcast();
               return;
             }
             if (
@@ -278,7 +293,7 @@
               event.type === "paymentPending" ||
               event.type === "paymentFailed"
             ) {
-              void refreshBalances();
+              void refreshAndBroadcast();
               notifyPaymentReceived(
                 event.payment.raw,
                 event.type === "paymentSucceeded" ? "confirmed" : "pending",
