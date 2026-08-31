@@ -33,6 +33,13 @@
   import { lnAddressStore } from "$lib/stores/lightningAddress";
   import { walletStore, transactions } from "$lib/stores/wallet";
   import { tabSync } from "$lib/tabSync";
+  import { connectRails, subscribeRails, adapters } from "$lib/rails";
+  import {
+    setRailState,
+    refreshBalances,
+    setUnclaimedDeposits,
+  } from "$lib/stores/rails";
+  import { notifyPaymentReceived } from "$lib/stores/paymentEvents";
 
   let { data, children } = $props();
 
@@ -42,7 +49,7 @@
   let browserCompatible = $state(false);
   let walletInitError = $state(null);
   let walletInitialized = $state(false); // Track if wallet has been initialized
-  let walletEventListenerId = null;
+  let railsUnsubscribe = null;
   let lastSyncTime = 0;
   let syncDebounceTimer = null;
   let currentUserId = null; // Track current user to detect changes
@@ -186,7 +193,16 @@
         mnemonic = walletService.generateMnemonic();
 
         // Initialize and save the new wallet
-        await walletService.initWallet(mnemonic, userId);
+        await connectRails(mnemonic, userId);
+        setRailState(
+          "spark",
+          adapters.spark.isConnected() ? "connected" : "unavailable",
+        );
+        setRailState(
+          "liquid",
+          adapters.liquid.isConnected() ? "connected" : "unavailable",
+        );
+        await refreshBalances();
         await walletService.saveMnemonic(mnemonic, userPassword, userId);
 
         // Notify server about new wallet
@@ -215,7 +231,16 @@
       }
 
       // Initialize wallet with mnemonic
-      await walletService.initWallet(mnemonic, userId);
+      await connectRails(mnemonic, userId);
+      setRailState(
+        "spark",
+        adapters.spark.isConnected() ? "connected" : "unavailable",
+      );
+      setRailState(
+        "liquid",
+        adapters.liquid.isConnected() ? "connected" : "unavailable",
+      );
+      await refreshBalances();
 
       // Check if connected successfully
       if (!walletService.isConnected()) {
@@ -235,68 +260,34 @@
         );
       }
 
-      // Setup event listener for SDK events AFTER connection (only if not already registered)
+      // Subscribe to rail events (balances, payments, deposits needing claim)
+      // AFTER connection (only if not already registered)
       try {
-        if (!walletEventListenerId) {
-          walletEventListenerId = await walletService.addEventListener(
-            async (event) => {
-              // Handle synced events with debouncing
-              if (event.type === "synced") {
-                const now = Date.now();
-
-                // Prevent rapid successive syncs (within 10 seconds)
-                // BUT: Always allow the first sync (lastSyncTime === 0) to ensure
-                // transactions are loaded when wallet opens (e.g., after Bitcoin purchase)
-                if (lastSyncTime !== 0 && now - lastSyncTime < 10000) {
-                  return;
-                }
-
-                lastSyncTime = now;
-
-                // Clear any pending refresh
-                if (syncDebounceTimer) {
-                  clearTimeout(syncDebounceTimer);
-                }
-
-                // Debounce the refresh to avoid rapid successive calls
-                syncDebounceTimer = setTimeout(async () => {
-                  try {
-                    // Refresh wallet data only (deduplication prevents unnecessary updates)
-                    const { walletStore } = await import("$lib/stores/wallet");
-                    await walletStore.refresh();
-
-                    // Mark initial sync as complete
-                    walletStore.update((state) => ({
-                      ...state,
-                      didCompleteInitialSync: true,
-                    }));
-
-                    // Get updated balance and broadcast to other tabs (only if changed)
-                    const info = await walletService.getWalletInfo();
-                    const balance = info?.walletInfo?.balanceSat || 0;
-
-                    // Broadcast wallet update to other tabs
-                    tabSync.broadcastWalletUpdate(balance);
-
-                    // Refresh transactions through transactionService to respect filters
-                    const { transactionStore } = await import(
-                      "$lib/transactionService"
-                    );
-                    await transactionStore.loadTransactions(true);
-                  } catch (e) {
-                    console.error("[Layout] Error refreshing after sync:", e);
-                  }
-                }, 1000); // Wait 1 second before refreshing
-              }
-
-              // Note: Payment events (paymentPending, paymentWaitingConfirmation, paymentSucceeded, etc.)
-              // are handled comprehensively in wallet.ts:371-500 with proper navigation and notifications.
-              // We don't handle them here to avoid duplicate processing.
-            },
-          );
+        if (!railsUnsubscribe) {
+          railsUnsubscribe = await subscribeRails((event) => {
+            if (event.type === "depositsNeedClaim") {
+              setUnclaimedDeposits(event.count);
+              return;
+            }
+            if (event.type === "balanceChanged" || event.type === "synced") {
+              void refreshBalances();
+              return;
+            }
+            if (
+              event.type === "paymentSucceeded" ||
+              event.type === "paymentPending" ||
+              event.type === "paymentFailed"
+            ) {
+              void refreshBalances();
+              notifyPaymentReceived(
+                event.payment.raw,
+                event.type === "paymentSucceeded" ? "confirmed" : "pending",
+              );
+            }
+          });
         }
       } catch (e) {
-        console.error("[Layout] Failed to add event listener:", e);
+        console.error("[Layout] Failed to subscribe to rails:", e);
       }
 
       // SDK is connected - initialize wallet store which will start event listening
@@ -625,7 +616,14 @@
       if (!walletService.isConnected()) {
         sdkSuspended = true;
         walletInitialized = false;
-        walletEventListenerId = null;
+        if (railsUnsubscribe) {
+          try {
+            await railsUnsubscribe();
+          } catch (e) {
+            console.warn("[Layout] Failed to unsubscribe rails on hide:", e);
+          }
+          railsUnsubscribe = null;
+        }
         return;
       }
       if (sdkDisconnectTimer) return;
@@ -641,7 +639,14 @@
           console.warn("[Layout] Failed to disconnect SDK on hide:", error);
         }
 
-        walletEventListenerId = null;
+        if (railsUnsubscribe) {
+          try {
+            await railsUnsubscribe();
+          } catch (e) {
+            console.warn("[Layout] Failed to unsubscribe rails on hide:", e);
+          }
+          railsUnsubscribe = null;
+        }
         walletInitialized = false;
 
         try {
@@ -750,14 +755,13 @@
       // Clean up tab sync (releases lock and broadcasts to other tabs)
       tabSync.cleanup();
 
-      // Clean up wallet event listener
-      if (walletEventListenerId) {
+      // Clean up rail event subscriptions
+      if (railsUnsubscribe) {
         try {
-          const ws = await import("$lib/walletService");
-          await ws.removeEventListener(walletEventListenerId);
-          walletEventListenerId = null;
+          await railsUnsubscribe();
+          railsUnsubscribe = null;
         } catch (e) {
-          console.error("[Layout] Failed to remove event listener:", e);
+          console.error("[Layout] Failed to unsubscribe rails:", e);
         }
       }
 
