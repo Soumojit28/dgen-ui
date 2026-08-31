@@ -2159,7 +2159,23 @@ const payments = await allPayments(limit);
 
 adding `import { allPayments } from "$lib/rails";` at the top. Field references downstream change from Liquid names to the normalized ones: `paymentTime` becomes `timestamp`, `paymentType` becomes `direction`, `feesSat` becomes `feeSat`.
 
-Run `grep -n "paymentTime\|paymentType\|feesSat" src/lib/stores/wallet.ts src/lib/transactionService.ts` and update every hit.
+Search the WHOLE tree, not just those two files — the renamed fields are read from components too:
+
+Run: `grep -rn "paymentTime\|paymentType\|feesSat" src/ --include=*.ts --include=*.svelte`
+
+`src/components/PaymentsList.svelte` is the one that matters most and is easy to miss. It imports from `$lib/transactionService` and reads, off each payment object:
+
+| Field                 | Reads                                 | Becomes                                                                        |
+| --------------------- | ------------------------------------- | ------------------------------------------------------------------------------ |
+| `payment.paymentType` | 5 (lines ~276, 279, 1086, 1087, 1103) | `payment.direction`                                                            |
+| `payment.paymentTime` | 1 (line ~285)                         | `payment.timestamp`                                                            |
+| `payment.feesSat`     | 2 (lines ~1114, 1116)                 | `payment.feeSat`                                                               |
+| `payment.amountSat`   | 2                                     | unchanged                                                                      |
+| `payment.status`      | 6                                     | unchanged name, but the value set narrows to `pending` / `complete` / `failed` |
+
+If these are missed, nothing throws: `payment.paymentType` becomes `undefined`, so `=== "receive"` is false and **every payment renders as a send with a negative amount**, the date column breaks, and fees display blank. Verify by grepping for zero remaining hits after the edit.
+
+Note the local variable `paymentTypeLabel` in that file is unrelated — it is a display string, not a field read. Leave it alone.
 
 - [ ] **Step 7: Verify build and suite**
 
