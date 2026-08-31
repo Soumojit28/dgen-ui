@@ -12,7 +12,13 @@ import type { Rail, RailAdapter, RailEvent, RailPayment } from "./types";
 
 export * from "./types";
 export { railForDestination, railForReceiveMethod } from "./router";
-export { getSparkNetworkStatus } from "./spark";
+export {
+  getSparkNetworkStatus,
+  registerLightningAddress,
+  getLightningAddress,
+  checkLightningAddressAvailable,
+  deleteLightningAddress,
+} from "./spark";
 
 export const adapters: Record<Rail, RailAdapter> = {
   spark: sparkAdapter,

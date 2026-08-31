@@ -228,3 +228,69 @@ export const sparkAdapter: RailAdapter = {
 export function getSparkSdk(): sparkSdk.BreezSdk | null {
   return sdk;
 }
+
+/**
+ * A registered Lightning address, shaped for this app's existing consumers.
+ *
+ * Spark returns `lnurl` as `{ url, bech32 }`, but `lnAddressStore.setSuccess`
+ * and the profile POST both expect a string, so it is flattened here rather
+ * than at every call site. `bip353Address` has no Spark equivalent — the old
+ * breez.fun flow supplied it — so it is always undefined; the store already
+ * coerces that to null, and PaymentDetails reads its own copy off historical
+ * payment details, not from here.
+ */
+export interface SparkLightningAddress {
+  username: string;
+  lightningAddress: string;
+  description: string;
+  /** bech32 form, falling back to the raw URL. */
+  lnurl: string;
+  bip353Address?: undefined;
+}
+
+function toAddressResult(info: unknown): SparkLightningAddress {
+  const i = info as {
+    username?: string;
+    lightningAddress?: string;
+    description?: string;
+    lnurl?: { url?: string; bech32?: string };
+  };
+  return {
+    username: i.username ?? "",
+    lightningAddress: i.lightningAddress ?? "",
+    description: i.description ?? "",
+    lnurl: i.lnurl?.bech32 || i.lnurl?.url || "",
+    bip353Address: undefined,
+  };
+}
+
+export async function checkLightningAddressAvailable(
+  username: string,
+): Promise<boolean> {
+  const sdk = getSparkSdk();
+  if (!sdk) throw new Error("Spark rail unavailable");
+  return await sdk.checkLightningAddressAvailable({ username });
+}
+
+export async function registerLightningAddress(
+  username: string,
+  description?: string,
+): Promise<SparkLightningAddress> {
+  const sdk = getSparkSdk();
+  if (!sdk) throw new Error("Spark rail unavailable");
+  const info = await sdk.registerLightningAddress({ username, description });
+  return toAddressResult(info);
+}
+
+export async function getLightningAddress(): Promise<SparkLightningAddress | null> {
+  const sdk = getSparkSdk();
+  if (!sdk) return null;
+  const info = await sdk.getLightningAddress();
+  return info ? toAddressResult(info) : null;
+}
+
+export async function deleteLightningAddress(): Promise<void> {
+  const sdk = getSparkSdk();
+  if (!sdk) throw new Error("Spark rail unavailable");
+  await sdk.deleteLightningAddress();
+}

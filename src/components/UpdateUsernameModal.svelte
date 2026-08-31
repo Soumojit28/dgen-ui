@@ -22,7 +22,8 @@
   let validationError = $state<string | null>(null);
   let showConfirmation = $state(false);
 
-  const domain = PUBLIC_DOMAIN || "breez.fun";
+  const domain =
+    import.meta.env.VITE_LNURL_DOMAIN || PUBLIC_DOMAIN || "breez.fun";
 
   // Validation
   const validateUsername = (value: string): string | null => {

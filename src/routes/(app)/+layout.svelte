@@ -34,7 +34,13 @@
   import { lnAddressStore } from "$lib/stores/lightningAddress";
   import { walletStore, transactions } from "$lib/stores/wallet";
   import { tabSync } from "$lib/tabSync";
-  import { connectRails, subscribeRails, adapters } from "$lib/rails";
+  import {
+    connectRails,
+    subscribeRails,
+    adapters,
+    getLightningAddress,
+    registerLightningAddress,
+  } from "$lib/rails";
   import {
     setRailState,
     refreshBalances,
@@ -379,9 +385,9 @@
 
       // Try recovery first - this checks if current seed already has a registered address
       console.log("[Layout] Attempting recovery first...");
-      const recovered = await walletService.recoverLightningAddress(
-        webhookUrl.toString(),
-      );
+      // Spark resolves ownership from the wallet's identity key, so this is
+      // a plain read — no signing, no webhook argument.
+      const recovered = await getLightningAddress();
 
       if (recovered && recovered.lightningAddress) {
         console.log("[Layout] Recovered existing address");
@@ -433,18 +439,12 @@
       const baseUsername = walletService.formatUsername(user.username);
       console.log("[Layout] Auto-registering with formatted username");
 
-      // registerLightningAddress now includes automatic retry with discriminators
-      const result = await walletService.registerLightningAddress(
-        baseUsername,
-        webhookUrl.toString(),
-      );
+      // No silent discriminator suffix any more: on a DGEN-owned domain the
+      // namespace is exclusive, so a taken name is surfaced rather than
+      // quietly turning alice into alice473.
+      const result = await registerLightningAddress(baseUsername);
 
       console.log("[Layout] Auto-registration successful");
-
-      // Log if username was modified with discriminator
-      if (result.usernameModified) {
-        console.log("[Layout] Username was modified during registration");
-      }
 
       lnAddressStore.setSuccess(
         result.lnurl,
