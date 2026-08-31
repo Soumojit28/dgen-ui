@@ -12,6 +12,8 @@ import {
 } from "../esplora/PollManager";
 import { trackOutgoingTx } from "../sendGate";
 import { railState } from "./rails";
+import { allPayments } from "../rails";
+import { toLegacyPayment } from "../rails/legacy";
 
 // Define interfaces locally to avoid import issues
 interface GetInfoResponse {
@@ -460,8 +462,13 @@ const createTransactionsStore = () => {
 
     async refresh(): Promise<void> {
       try {
-        const transactions = await walletService.getTransactions();
-        set(transactions);
+        // Both rails, newest first. Widened through toLegacyPayment so the
+        // existing consumers (PaymentsList, transactionService filters) keep
+        // reading paymentType/paymentTime/feesSat while new code can read the
+        // normalized names. See src/lib/rails/legacy.ts for why this is a
+        // boundary mapping rather than a rename.
+        const payments = await allPayments();
+        set(payments.map(toLegacyPayment) as unknown as Payment[]);
       } catch (error) {
         console.error("Failed to refresh transactions:", error);
         throw error;
