@@ -1,5 +1,6 @@
 <script>
   import { SvelteToast } from "@zerodevx/svelte-toast";
+  import SparkStatusBanner from "$comp/SparkStatusBanner.svelte";
   import { onDestroy, onMount, untrack } from "svelte";
   import { get } from "svelte/store";
   import { PUBLIC_DGEN_URL } from "$env/static/public";
@@ -917,6 +918,7 @@
   class:pro-mode={$proMode}
 >
   <AppHeader {user} {subject} />
+  <SparkStatusBanner />
   <main class="pb-4 pro-mode-inherit">
     {#if !$loading && !isSwitchingUsers}
       {@render children?.()}

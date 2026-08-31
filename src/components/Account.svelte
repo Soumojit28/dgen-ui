@@ -4,6 +4,7 @@
   import { goto } from "$app/navigation";
   import { onMount } from "svelte";
   import BalancePlaceholder from "./BalancePlaceholder.svelte";
+  import DepositClaims from "$comp/DepositClaims.svelte";
   import {
     walletBalance,
     walletInfo,
@@ -169,6 +170,9 @@
             </span>
           {/if}
         </div>
+
+        <!-- Bitcoin deposits awaiting manual claim (fees above the auto ceiling) -->
+        <div class="mt-4 text-left"><DepositClaims /></div>
 
         <!-- Beautiful Toggle for Fiat/BTC/Sats (3 options) -->
         <div class="flex items-center justify-center mt-4">

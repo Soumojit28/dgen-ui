@@ -294,3 +294,64 @@ export async function deleteLightningAddress(): Promise<void> {
   if (!sdk) throw new Error("Spark rail unavailable");
   await sdk.deleteLightningAddress();
 }
+
+/**
+ * A deposit the automatic ceiling would not cover.
+ *
+ * `requiredFeeSats` comes from the SDK's own claim error and is the exact
+ * fee needed. Never invent a ceiling from the deposit amount — that would
+ * permit a fee up to 100% of the deposit.
+ */
+export interface UnclaimedDeposit {
+  txid: string;
+  vout: number;
+  amountSats: number;
+  isMature: boolean;
+  requiredFeeSats?: number;
+}
+
+export async function listUnclaimedDeposits(): Promise<UnclaimedDeposit[]> {
+  const sdk = getSparkSdk();
+  if (!sdk) return [];
+  const response = await sdk.listUnclaimedDeposits({});
+  return (response.deposits ?? []).map((d) => {
+    const error = d.claimError as
+      | { type: string; requiredFeeSats?: number }
+      | undefined;
+    return {
+      txid: d.txid,
+      vout: d.vout,
+      amountSats: Number(d.amountSats ?? 0),
+      isMature: Boolean(d.isMature),
+      requiredFeeSats:
+        error?.type === "maxDepositClaimFeeExceeded"
+          ? Number(error.requiredFeeSats ?? 0)
+          : undefined,
+    };
+  });
+}
+
+/**
+ * Claim a deposit the automatic ceiling would not cover.
+ *
+ * `maxFeeSat` must be at least the SDK's quoted fee, or the call returns
+ * MaxDepositClaimFeeExceeded and the deposit waits for maturity instead.
+ * Pass the deposit's `requiredFeeSats` — nothing larger.
+ *
+ * Note: the docs describe `fetchClaimDepositQuote`, which does NOT exist in
+ * pinned 0.23.0 (the docs track main). The claim error carries the fee
+ * instead. Revisit on the next SDK bump.
+ */
+export async function claimDeposit(
+  txid: string,
+  vout: number,
+  maxFeeSat: number,
+): Promise<void> {
+  const sdk = getSparkSdk();
+  if (!sdk) throw new Error("Spark rail unavailable");
+  await sdk.claimDeposit({
+    txid,
+    vout,
+    maxFee: { type: "fixed", amount: maxFeeSat },
+  });
+}
