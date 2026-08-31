@@ -221,11 +221,8 @@ export async function allPayments(limit = 100): Promise<RailPayment[]> {
       : Promise.resolve([]),
   ]);
 
-  const payments: RailPayment[] = [];
   for (const result of results) {
-    if (result.status === "fulfilled") {
-      payments.push(...result.value);
-    } else {
+    if (result.status === "rejected") {
       sdkLogger.warn(
         "[rails] listPayments failed for one rail:",
         result.reason,
@@ -233,7 +230,12 @@ export async function allPayments(limit = 100): Promise<RailPayment[]> {
     }
   }
 
-  return payments.sort((a, b) => b.timestamp - a.timestamp);
+  const [sparkResult, liquidResult] = results;
+  const sparkPayments =
+    sparkResult.status === "fulfilled" ? sparkResult.value : [];
+  const liquidPayments =
+    liquidResult.status === "fulfilled" ? liquidResult.value : [];
+  return mergePayments(sparkPayments, liquidPayments);
 }
 
 /** Subscribe to events from both rails. Returns a cleanup function. */
@@ -261,4 +263,22 @@ export async function subscribeRails(
       }
     }
   };
+}
+
+/**
+ * Merge two rails' payments, newest first.
+ *
+ * Deduplication is keyed on `rail:id`, never `id` alone: the two SDKs
+ * mint ids independently and a collision across rails is two different
+ * payments, not one.
+ */
+export function mergePayments(
+  a: RailPayment[],
+  b: RailPayment[],
+): RailPayment[] {
+  const seen = new Map<string, RailPayment>();
+  for (const payment of [...a, ...b]) {
+    seen.set(`${payment.rail}:${payment.id}`, payment);
+  }
+  return [...seen.values()].sort((x, y) => y.timestamp - x.timestamp);
 }

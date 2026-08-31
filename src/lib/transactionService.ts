@@ -54,7 +54,7 @@ class TransactionCache {
     if (this.db) return;
 
     return new Promise((resolve, reject) => {
-      const request = indexedDB.open(this.dbName, 1);
+      const request = indexedDB.open(this.dbName, 2);
 
       request.onerror = () => reject(request.error);
       request.onsuccess = () => {
@@ -64,13 +64,17 @@ class TransactionCache {
 
       request.onupgradeneeded = (event) => {
         const db = (event.target as IDBOpenDBRequest).result;
-        if (!db.objectStoreNames.contains(this.storeName)) {
-          const store = db.createObjectStore(this.storeName, { keyPath: "id" });
-          store.createIndex("paymentTime", "paymentTime");
-          store.createIndex("paymentType", "paymentType");
-          store.createIndex("status", "status");
-          store.createIndex("amountSat", "amountSat");
+        // v2 stores RailPayment. The cache holds derived data only, so the
+        // upgrade drops and rebuilds rather than migrating field names.
+        if (db.objectStoreNames.contains(this.storeName)) {
+          db.deleteObjectStore(this.storeName);
         }
+        const store = db.createObjectStore(this.storeName, { keyPath: "id" });
+        store.createIndex("timestamp", "timestamp");
+        store.createIndex("direction", "direction");
+        store.createIndex("status", "status");
+        store.createIndex("amountSat", "amountSat");
+        store.createIndex("rail", "rail");
       };
     });
   }
