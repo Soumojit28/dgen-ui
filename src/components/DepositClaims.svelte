@@ -58,30 +58,52 @@
 
     <ul class="flex flex-col gap-2">
       {#each deposits as deposit (deposit.txid + deposit.vout)}
+        {@const feeKnown = typeof deposit.requiredFeeSats === "number"}
+        {@const fee = deposit.requiredFeeSats ?? 0}
+        {@const net = deposit.amountSats - fee}
+        {@const uneconomic = feeKnown && net <= 0}
+        {@const costly =
+          feeKnown && !uneconomic && fee > deposit.amountSats / 2}
         <li class="flex items-center justify-between gap-3">
           <span class="flex flex-col">
             <span class="font-mono text-sm">{deposit.amountSats} sats</span>
-            {#if deposit.requiredFeeSats}
-              <span class="text-xs opacity-60"
-                >Fee to add now: {deposit.requiredFeeSats} sats</span
-              >
+            {#if feeKnown}
+              <!-- The net is the number that matters. Showing amount and fee
+                   as two separate figures lets someone approve a fee that
+                   swallows most of the deposit without ever comparing them. -->
+              <span class="text-xs opacity-60">
+                Fee {fee} sats &rarr; you receive {net > 0 ? net : 0} sats
+              </span>
+              {#if uneconomic}
+                <span class="text-xs text-error"
+                  >Costs more than it is worth right now. Waiting for lower fees
+                  keeps it claimable.</span
+                >
+              {:else if costly}
+                <span class="text-xs text-warning"
+                  >The fee takes more than half of this deposit.</span
+                >
+              {/if}
             {/if}
           </span>
           <button
-            class="btn btn-sm btn-primary"
+            class="btn btn-sm {costly ? 'btn-warning' : 'btn-primary'}"
             disabled={claiming === `${deposit.txid}:${deposit.vout}` ||
               !deposit.isMature ||
-              !deposit.requiredFeeSats}
+              !feeKnown ||
+              uneconomic}
             onclick={() => claim(deposit)}
           >
             {#if claiming === `${deposit.txid}:${deposit.vout}`}
-              Adding…
+              Adding&hellip;
             {:else if !deposit.isMature}
               Confirming
-            {:else if !deposit.requiredFeeSats}
+            {:else if !feeKnown}
               Waiting
+            {:else if uneconomic}
+              Fee too high
             {:else}
-              Add for {deposit.requiredFeeSats} sats
+              Add {net} sats
             {/if}
           </button>
         </li>

@@ -1,11 +1,16 @@
 <script lang="ts">
   import { browser } from "$app/environment";
   import { lnAddressStore, isUpdating } from "$lib/stores/lightningAddress";
+  import { formatUsername } from "$lib/walletService";
+  // Registration goes through $lib/rails (Spark, DGEN domain). The
+  // walletService version registers against the shared breez.fun domain and
+  // auto-suffixes a taken name, so this dialog would show one domain and
+  // register on another.
   import {
-    updateLightningAddress,
-    formatUsername,
-    type LnAddressRegistrationResult,
-  } from "$lib/walletService";
+    registerLightningAddress,
+    checkLightningAddressAvailable,
+    type SparkLightningAddress,
+  } from "$lib/rails";
   import { success, fail } from "$lib/utils";
   import { PUBLIC_DGEN_URL, PUBLIC_DOMAIN } from "$env/static/public";
 
@@ -13,7 +18,7 @@
     currentUsername: string;
     userId: string;
     onClose: () => void;
-    onSuccess?: (result: LnAddressRegistrationResult) => void;
+    onSuccess?: (result: SparkLightningAddress) => void;
   }
 
   let { currentUsername, userId, onClose, onSuccess }: Props = $props();
@@ -80,12 +85,15 @@
       // Format username before update
       const formattedUsername = formatUsername(newUsername);
 
-      // Use update function which generates new BOLT12 offer and has retry logic
-      // This will automatically try with discriminators if username is taken
-      const result = await updateLightningAddress(
-        formattedUsername,
-        webhookUrl.toString(),
-      );
+      // The namespace is exclusive on a DGEN-owned domain, so check first and
+      // tell the user rather than silently handing them a suffixed name.
+      const available = await checkLightningAddressAvailable(formattedUsername);
+      if (!available) {
+        throw new Error(
+          `The name "${formattedUsername}" is already taken. Please choose another.`,
+        );
+      }
+      const result = await registerLightningAddress(formattedUsername);
 
       // Update store
       lnAddressStore.setUpdateSuccess(

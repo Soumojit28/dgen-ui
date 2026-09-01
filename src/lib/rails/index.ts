@@ -12,6 +12,7 @@ import type { Rail, RailAdapter, RailEvent, RailPayment } from "./types";
 
 export * from "./types";
 export { railForDestination, railForReceiveMethod } from "./router";
+export type { SparkLightningAddress } from "./spark";
 export {
   getSparkNetworkStatus,
   registerLightningAddress,

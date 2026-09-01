@@ -91,12 +91,16 @@
     lnAddressStore.setLoading();
 
     try {
-      const {
-        isConnected,
-        formatUsername,
-        registerLightningAddress,
-        recoverLightningAddress,
-      } = await import("$lib/walletService");
+      // Must use $lib/rails, not walletService. The walletService versions
+      // register against the shared breez.fun domain and auto-suffix a taken
+      // name; running them here silently overwrote whatever the settings
+      // page had registered on the DGEN domain.
+      const { isConnected, formatUsername } = await import(
+        "$lib/walletService"
+      );
+      const { registerLightningAddress, getLightningAddress } = await import(
+        "$lib/rails"
+      );
 
       // Wait for SDK to be ready
       let attempts = 0;
@@ -126,7 +130,9 @@
 
       // Try recovery first - this checks if current seed already has a registered address
       console.log("[Lightning Address] Attempting recovery first...");
-      const recovered = await recoverLightningAddress(webhookUrl.toString());
+      // Spark resolves ownership from the wallet's identity key — a plain
+      // read, no signing and no webhook argument.
+      const recovered = await getLightningAddress();
 
       if (recovered && recovered.lightningAddress) {
         console.log(
@@ -186,11 +192,10 @@
         baseUsername,
       );
 
-      // registerLightningAddress now includes automatic retry with discriminators
-      const result = await registerLightningAddress(
-        baseUsername,
-        webhookUrl.toString(),
-      );
+      // No silent discriminator suffix: on a DGEN-owned domain the namespace
+      // is exclusive, so a taken name is surfaced rather than quietly turning
+      // alice into alice473.
+      const result = await registerLightningAddress(baseUsername);
 
       console.log(
         "[Lightning Address] Auto-registration successful:",
