@@ -30,6 +30,17 @@ const connectSrc = [
   "https://*.breez.technology:*",
   "wss://*.breez.technology",
   "https://breez.fun",
+  // Spark rail operators. Spark signs across a threshold set of three
+  // independent hosts, only one of which is a Breez domain covered by the
+  // wildcard above. With the other two blocked, Lightning and on-chain BTC
+  // fail outright — this is not optional connectivity.
+  "https://*.spark.lightspark.com",
+  "https://api.lightspark.com",
+  "https://*.flashnet.xyz",
+  // Spark network status, read by SparkStatusBanner. The apex redirects to
+  // www, and a CSP wildcard never matches the apex, so both are listed.
+  "https://spark.money",
+  "https://www.spark.money",
   "https://api.sideswap.io", // PayJoin API for Breez SDK
   "wss://api.sideswap.io", // SideSwap WebSocket for swap coordination
   "wss://api-testnet.sideswap.io", // SideSwap testnet WebSocket

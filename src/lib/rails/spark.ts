@@ -50,9 +50,17 @@ function buildConfig(): sparkSdk.Config {
  * Spark network health. Requires no SDK instance, so it can be called
  * before or independently of connecting. Breez's production checklist
  * requires surfacing this.
+ *
+ * It does, however, require the wasm module: `getSparkStatus` is a free
+ * export whose glue dereferences the module-level `wasm` binding, which
+ * stays undefined until `init()` runs. The status banner calls this from
+ * onMount, long before the layout finishes deriving the wallet and calling
+ * connect(), so without initWasm() here the first check on every page load
+ * threw on an undefined binding and reported "unknown".
  */
 export async function getSparkNetworkStatus(): Promise<sparkSdk.ServiceStatus> {
   try {
+    await initWasm();
     const status = await sparkSdk.getSparkStatus();
     return status.status ?? "unknown";
   } catch (error) {

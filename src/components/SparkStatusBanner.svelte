@@ -2,11 +2,23 @@
   import { onMount, onDestroy } from "svelte";
   import { getSparkNetworkStatus } from "$lib/rails";
 
-  // Starts unknown, not operational: getSparkNetworkStatus() also returns
-  // "unknown" when the check fails or times out, and showing nothing in that
-  // case tells the user everything is fine when we simply do not know.
-  let status = $state("unknown");
-  let timer: ReturnType<typeof setInterval> | null = null;
+  // null means "not checked yet", which is distinct from a check that came
+  // back "unknown". Both are states we cannot vouch for, but only the second
+  // is worth warning about: the first check has to await the wasm module, so
+  // treating null as unknown put a scary banner on screen during every page
+  // load and then removed it a moment later.
+  let status = $state<string | null>(null);
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let stopped = false;
+  let unknownStreak = 0;
+
+  // An "unknown" is usually transient — wasm still loading, or a slow status
+  // fetch — so retry soon rather than leaving the warning up for a full slow
+  // interval. Give up on the fast cadence after a minute so a genuinely
+  // unreachable service is not polled every 15s forever.
+  const SLOW_MS = 5 * 60 * 1000;
+  const FAST_MS = 15 * 1000;
+  const FAST_ATTEMPTS = 4;
 
   // "unknown" is deliberately excluded from the loud banner but tracked
   // separately — it is a "we cannot tell" state, not a healthy one.
@@ -21,17 +33,26 @@
       : "Bitcoin and Lightning payments may be slower than usual right now.",
   );
 
+  // Self-scheduling rather than setInterval: the check awaits wasm init on
+  // the first call, and overlapping runs would stack up behind it.
   async function check() {
-    status = await getSparkNetworkStatus();
+    const next = await getSparkNetworkStatus();
+    if (stopped) return;
+    status = next;
+
+    unknownStreak = next === "unknown" ? unknownStreak + 1 : 0;
+    const delay =
+      unknownStreak > 0 && unknownStreak <= FAST_ATTEMPTS ? FAST_MS : SLOW_MS;
+    timer = setTimeout(check, delay);
   }
 
   onMount(() => {
     void check();
-    timer = setInterval(check, 5 * 60 * 1000);
   });
 
   onDestroy(() => {
-    if (timer) clearInterval(timer);
+    stopped = true;
+    if (timer) clearTimeout(timer);
   });
 </script>
 
