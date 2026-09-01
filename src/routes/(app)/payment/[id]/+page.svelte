@@ -214,8 +214,11 @@
               <div class="space-y-1">
                 <h2 class="text-lg font-semibold">Refund required</h2>
                 <p class="text-sm text-secondary">
-                  This on-chain deposit fell below the minimum. Use the refund
-                  flow to recover your funds.
+                  This on-chain deposit fell below the minimum and was not
+                  collected. The self-service refund flow has been retired along
+                  with the swap system that created these — please contact
+                  support with this payment open and they can recover it for
+                  you.
                 </p>
               </div>
             </div>
@@ -471,11 +474,13 @@
                   </div>
                   <div class="flex-1">
                     <h3 class="font-semibold text-lg text-warning mb-1">
-                      {$t("payments.refundAvailable") || "Refund Available"}
+                      Recoverable — contact support
                     </h3>
                     <p class="text-sm opacity-90 leading-relaxed">
-                      {$t("payments.refundDescription") ||
-                        "This on-chain payment failed and the funds can be refunded to your Bitcoin address."}
+                      This on-chain payment failed. The self-service refund flow
+                      has been retired along with the swap system that created
+                      it, so support needs to recover this one for you — quote
+                      this payment when you get in touch.
                     </p>
                   </div>
                 </div>

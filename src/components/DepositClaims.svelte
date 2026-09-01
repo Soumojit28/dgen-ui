@@ -6,6 +6,7 @@
     type UnclaimedDeposit,
   } from "$lib/rails/spark";
   import { unclaimedDepositCount } from "$lib/stores/rails";
+  import { mapTxError } from "$lib/txErrors";
 
   let deposits = $state<UnclaimedDeposit[]>([]);
   let claiming = $state<string | null>(null);
@@ -15,7 +16,10 @@
     try {
       deposits = await listUnclaimedDeposits();
     } catch (e) {
-      error = e instanceof Error ? e.message : "Could not load deposits";
+      error = mapTxError(
+        e instanceof Error ? e.message : undefined,
+        "Could not load deposits",
+      );
     }
   }
 
@@ -32,7 +36,13 @@
       );
       await load();
     } catch (e) {
-      error = e instanceof Error ? e.message : "Claim failed";
+      // Routed through mapTxError so a fee-too-high failure reads as plain
+      // language instead of raw SDK text — this is the component that
+      // actually produces those errors.
+      error = mapTxError(
+        e instanceof Error ? e.message : undefined,
+        "Claim failed",
+      );
     } finally {
       claiming = null;
     }

@@ -369,8 +369,6 @@
         </div>
       {/if}
 
-      {#if user?.id && user.id === subject.id}{/if}
-
       <!-- Syncing Indicator -->
       <!-- TODO: Re-enable syncing indicator later -->
       <!-- {#if user && subject?.username === user?.username && isSyncing}

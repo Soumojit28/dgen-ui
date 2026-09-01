@@ -126,7 +126,12 @@ class TransactionCache {
     await new Promise<void>((resolve, reject) => {
       const tx = this.db!.transaction([this.storeName], "readwrite");
       const store = tx.objectStore(this.storeName);
-      const index = store.index("paymentTime");
+      // Must match the v2 schema. Asking for the removed "paymentTime" index
+      // throws NotFoundError, which rejects through saveTransactions into
+      // loadTransactions' catch — leaving the payments list showing stale data
+      // with no error on screen. Only bites wallets past the 2000-row prune
+      // threshold, which is exactly the users with the most to lose.
+      const index = store.index("timestamp");
       let deleted = 0;
       const request = index.openCursor();
       tx.oncomplete = () => resolve();

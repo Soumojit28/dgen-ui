@@ -36,6 +36,12 @@ jobs:
       - name: Check formatting
         run: bun run lint
 
+      # svelte-kit sync generates .svelte-kit/tsconfig.json, which is
+      # gitignored and which tsconfig.rails.json extends. Without it tsc
+      # silently drops the extends target and reports ~60 phantom errors.
+      - name: Generate SvelteKit types
+        run: bunx svelte-kit sync
+
       - name: Typecheck rails
         run: bun run typecheck:rails
 
