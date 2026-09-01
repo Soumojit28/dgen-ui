@@ -5,6 +5,7 @@
   import { onMount } from "svelte";
   import BalancePlaceholder from "./BalancePlaceholder.svelte";
   import DepositClaims from "$comp/DepositClaims.svelte";
+  import { sparkAvailable, liquidAvailable } from "$lib/stores/rails";
   import {
     walletBalance,
     walletInfo,
@@ -69,7 +70,17 @@
     }
   });
 
+  // A rail that failed to connect reports balanceSat 0, which is
+  // indistinguishable from genuinely having no money. Showing a dash instead
+  // of "0" is the difference between "we cannot reach the network" and "your
+  // funds are gone" — the second is what a user assumes when a wallet that
+  // held money shows zero.
+  let balanceUnavailable = $derived(
+    account?.browserManaged && !$sparkAvailable && !$liquidAvailable,
+  );
+
   let displayBalance = $derived(() => {
+    if (balanceUnavailable) return "—";
     const total = unifiedTotalSats();
     if (unit === "btc") return btc(total);
     if (unit === "sats") return sat(total);
