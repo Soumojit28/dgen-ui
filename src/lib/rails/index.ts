@@ -64,6 +64,40 @@ export async function disconnectRails(): Promise<void> {
   ]);
 }
 
+/**
+ * The fee for a prepared Spark payment, in sats.
+ *
+ * Each SendPaymentMethod variant carries its fee in a different field, and an
+ * on-chain send does not carry a flat one at all — it carries a feeQuote with
+ * a figure per confirmation speed. Reading one field across all variants
+ * silently reported 0 for on-chain Bitcoin sends, so the user saw "no fee"
+ * and was then charged real miner fees.
+ *
+ * The medium quote is used because sendPayment defaults to medium speed when
+ * no OnchainConfirmationSpeed is supplied.
+ */
+function sparkFeeSat(paymentMethod: unknown): number {
+  const m = paymentMethod as any;
+  switch (m?.type) {
+    case "bolt11Invoice":
+      return (
+        Number(m.lightningFeeSats ?? 0) + Number(m.sparkTransferFeeSats ?? 0)
+      );
+    case "bitcoinAddress": {
+      const q = m.feeQuote?.speedMedium;
+      return Number(q?.userFeeSat ?? 0) + Number(q?.l1BroadcastFeeSat ?? 0);
+    }
+    case "sparkAddress":
+    case "sparkInvoice":
+      return Number(m.fee ?? 0);
+    case "crossChainAddress":
+      return Number(m.feeAmount ?? 0);
+    default:
+      sdkLogger.warn(`[rails] unknown Spark payment method: ${m?.type}`);
+      return 0;
+  }
+}
+
 export interface PreparedSend {
   rail: Rail;
   amountSat: number;
@@ -90,13 +124,7 @@ export async function prepareSend(
       paymentRequest: { type: "input", input: destination.trim() },
       amount: amountSat !== undefined ? BigInt(amountSat) : undefined,
     });
-    const method = prepared.paymentMethod as any;
-    const feeSat = Number(
-      method?.lightningFeeSats ??
-        method?.fee ??
-        method?.sparkTransferFeeSats ??
-        0,
-    );
+    const feeSat = sparkFeeSat(prepared.paymentMethod);
     return {
       rail,
       amountSat: Number(prepared.amount ?? 0),
