@@ -161,9 +161,13 @@
         // Listen for wallet updates from primary tab
         tabSync.onMessage(async (message) => {
           if (message.type === "WALLET_UPDATED") {
-            // Refresh wallet data from shared storage if needed
-            const { walletStore } = await import("$lib/stores/wallet");
-            await walletStore.refresh();
+            // Adopt the broadcast figure directly. A secondary tab holds no
+            // wallet lock, so it never connects a rail and cannot fetch a
+            // balance of its own — the primary tab's broadcast is the only
+            // source it has. Calling walletStore.refresh() here discarded it
+            // and left this tab showing 0 forever.
+            const { adoptBroadcastBalance } = await import("$lib/stores/rails");
+            adoptBroadcastBalance(message.balance);
           } else if (message.type === "LOCK_RELEASED") {
             // Try to become primary tab
             isSecondaryTab = false;

@@ -1,12 +1,14 @@
 import { writable, derived, get } from "svelte/store";
 import { adapters } from "$lib/rails";
-import type { Rail, RailConnectionState } from "$lib/rails/types";
+import type { Rail, RailBalance, RailConnectionState } from "$lib/rails/types";
 import { sdkLogger } from "$lib/logger";
 
 interface RailSlice {
   state: RailConnectionState;
   balanceSat: number;
-  assets: Array<{ assetId: string; balance: number }>;
+  /** Reuses RailBalance's element type so the two cannot drift. The field
+   *  is balanceSat, not balance — the SDK's `balance` is not a sats figure. */
+  assets: NonNullable<RailBalance["assets"]>;
 }
 
 interface RailsState {
@@ -25,6 +27,21 @@ export const railState = writable<RailsState>(initial);
 
 export function setRailState(rail: Rail, state: RailConnectionState): void {
   railState.update((s) => ({ ...s, [rail]: { ...s[rail], state } }));
+}
+
+/**
+ * Adopt a balance broadcast by the primary tab.
+ *
+ * A secondary tab never acquires the wallet lock, so it never connects a rail
+ * and `refreshBalances()` can do nothing for it. Without this its balance
+ * stays at the initial 0 for the tab's whole life — showing "you have
+ * nothing" beside a primary tab displaying real funds.
+ */
+export function adoptBroadcastBalance(balanceSat: number): void {
+  railState.update((s) => ({
+    ...s,
+    spark: { ...s.spark, state: "connected", balanceSat },
+  }));
 }
 
 export function setUnclaimedDeposits(count: number): void {

@@ -11,7 +11,7 @@ import {
   clearTrackedTxs,
 } from "../esplora/PollManager";
 import { trackOutgoingTx } from "../sendGate";
-import { railState } from "./rails";
+import { railState, refreshBalances } from "./rails";
 import { allPayments } from "../rails";
 import { toLegacyPayment } from "../rails/legacy";
 
@@ -336,6 +336,13 @@ const createWalletState = (mnemonicStore?: any, passwordStore?: any) => {
 
     // Refresh wallet info (with deduplication)
     async refresh(): Promise<void> {
+      // walletBalance/assetBalances now derive from railState, not from
+      // `info`. Around ten call sites — including the 60s missed-event poll
+      // and every "pull to refresh" screen — call this expecting the
+      // displayed balance to update, so it has to drive railState too.
+      // Without this they spin and then show whatever was already there.
+      void refreshBalances();
+
       try {
         const newInfo = await walletService.getWalletInfo();
 
@@ -422,9 +429,14 @@ export const walletInfo = derived(walletStore, ($wallet) => $wallet.info);
 
 // Spendable Bitcoin lives on the Spark rail. Liquid balances are separate
 // and surfaced through `assetBalances` (spec 5). These read from railState
-// rather than walletInfo so there is ONE source of balance truth — after
-// the rails boot, walletStore is no longer fed by SDK events, and a second
-// derivation here would silently freeze at its last value.
+// rather than walletInfo so there is ONE source of balance truth; a second
+// derivation off `info` would drift from it.
+//
+// Note walletStore's own SDK listener is still live (startEventListening is
+// called from init() and unlock()), so `info` keeps updating — it just is
+// not what any balance display reads any more. refresh() below drives
+// railState as well, so the callers that expect it to update the visible
+// balance still work.
 //
 // The export names and the shape of each `assetBalances` entry
 // ({ assetId, balanceSat, name?, ticker? }) are load-bearing: five call
