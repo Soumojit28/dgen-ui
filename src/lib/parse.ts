@@ -109,6 +109,45 @@ export default async (s, host) => {
           break;
         }
 
+        // Spark reports a Lightning address as its own type; Liquid folded it
+        // into lnUrlPay. Without this case, scanning a friend's
+        // alice@getalby.com QR fell through to the default branch and the
+        // user landed on a blank send page with no explanation.
+        case "lightningAddress": {
+          redirect(307, `/ln/${t}`);
+          break;
+        }
+
+        // Likewise bip21: Liquid parsed a "bitcoin:..." URI straight to
+        // bitcoinAddress, Spark wraps it. The payload carries the concrete
+        // instruments in paymentMethods, so recurse into the first one we
+        // already know how to route.
+        case "bip21": {
+          const details = parsed as unknown as {
+            amountSat?: number;
+            paymentMethods?: Array<Record<string, any>>;
+          };
+          const method = (details.paymentMethods ?? []).find((m) =>
+            ["bitcoinAddress", "bolt11Invoice", "bolt11", "lnurlPay"].includes(
+              m?.type,
+            ),
+          );
+          const addr =
+            typeof method?.address === "string"
+              ? method.address
+              : method?.address?.address;
+          if (addr) {
+            const amt = details.amountSat;
+            redirect(
+              307,
+              amt ? `/send/bitcoin/${addr}/${amt}` : `/send/bitcoin/${addr}`,
+            );
+          }
+          // No routable instrument inside; fall through to legacy handling
+          // rather than redirecting somewhere with undefined in the URL.
+          break;
+        }
+
         // "lnUrlWithdraw" is Liquid's discriminant, "lnurlWithdraw" is Spark's.
         case "lnUrlWithdraw":
         case "lnurlWithdraw": {

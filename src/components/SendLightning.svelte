@@ -24,6 +24,25 @@
   let isLightningAddress = $state(false);
   let isAmountlessInvoice = $state(false);
   let amountSat = $state(1000); // Default amount for Lightning addresses
+
+  // The amount that `preparedPayment` was actually quoted for. The Numpad
+  // stays editable after Prepare, so without this a user could prepare 1,000
+  // sats, change the field to 5,000, and send — the screen showing 5,000
+  // while the SDK executes the 1,000-sat quote it still holds. Sending a
+  // different amount than the one on screen is the worst thing a wallet can
+  // do, so the prepared quote is discarded the moment the amount moves.
+  let preparedForAmountSat = $state(null);
+  let preparedIsStale = $derived(
+    preparedForAmountSat !== null &&
+      Math.trunc(amountSat) !== preparedForAmountSat,
+  );
+
+  $effect(() => {
+    if (preparedIsStale) {
+      preparedPayment = null;
+      preparedForAmountSat = null;
+    }
+  });
   let comment = $state("");
   // Spark reports fees and constraints at prepare time, so these are only
   // populated when the destination itself carries a sendable range (LNURL);
@@ -214,12 +233,14 @@
         // Lightning address or LNURL directly as `{ type: "input" }`, so
         // the original `payreq` string is passed straight through.
         preparedPayment = await prepareSend(payreq, safeAmountSat);
+        preparedForAmountSat = safeAmountSat;
         devLog("[SendLightning] LNURL payment prepared");
       } else if (isAmountlessInvoice && parsed?.invoice) {
         preparedPayment = await prepareSend(
           parsed.invoice.bolt11,
           safeAmountSat,
         );
+        preparedForAmountSat = safeAmountSat;
         devLog("[SendLightning] Amountless invoice prepared");
       } else if (parsed.type === "bolt12Offer" || parsed.offer) {
         // Prepare BOLT12 payment
