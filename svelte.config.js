@@ -1,5 +1,15 @@
-import adapter from "@sveltejs/adapter-netlify";
+import netlifyAdapter from "@sveltejs/adapter-netlify";
+import vercelAdapter from "@sveltejs/adapter-vercel";
 import { vitePreprocess } from "@sveltejs/vite-plugin-svelte";
+
+// Vercel sets VERCEL=1 on every build. Picking the adapter from it means the
+// same commit deploys to both hosts with no branch-local edit to remember —
+// swapping the import by hand is how a demo deploy ends up committed and
+// breaking the Netlify production build.
+const adapter = () =>
+  process.env.VERCEL
+    ? vercelAdapter({ runtime: "nodejs22.x" })
+    : netlifyAdapter();
 
 const isProd = process.env.NODE_ENV === "production";
 const styleSrc = ["self", "https://fonts.googleapis.com", "unsafe-inline"];

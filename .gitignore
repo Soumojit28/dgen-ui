@@ -20,3 +20,6 @@ test-*.js
 # Spark smoke-test wallet storage (throwaway seeds)
 .spark-smoke-data/
 spark_data/
+
+# Vercel build output
+.vercel/
