@@ -698,7 +698,21 @@
       sdkDisconnectTimer = null;
     }
 
-    if (!sdkSuspended || sdkResumeInFlight) return;
+    // Resume when the wallet is not up — not only when it was suspended.
+    //
+    // A tab that FIRST LOADED while hidden never initialised at all: both the
+    // $effect above and initializeBrowserWallet() bail on document.hidden, and
+    // document.hidden is not reactive, so nothing re-runs them when the tab is
+    // finally looked at. Such a tab has sdkSuspended === false, so gating on
+    // that alone left it on "Loading" forever until a manual reload — no
+    // balance, no rails, and no tab-lock banner either, because it never even
+    // reached the lock. Opening the app in a background tab is enough to hit
+    // this: a middle-click, "open in new tab", or a browser restoring a
+    // session on startup.
+    //
+    // A secondary tab has walletInitialized === true, so it still returns here
+    // and does not re-attempt a lock it legitimately lost.
+    if ((!sdkSuspended && walletInitialized) || sdkResumeInFlight) return;
     sdkResumeInFlight = true;
     let resumeSucceeded = false;
     try {
