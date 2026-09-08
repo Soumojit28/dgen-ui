@@ -8,6 +8,7 @@ import { railForDestination, railForReceiveMethod } from "./router";
 import * as walletService from "$lib/walletService";
 import { sdkLogger } from "$lib/logger";
 import { waitForOutgoingSlot, trackOutgoingTx } from "$lib/sendGate";
+import { toAssetUnits } from "$lib/assets";
 import type { Rail, RailAdapter, RailEvent, RailPayment } from "./types";
 
 export * from "./types";
@@ -283,8 +284,21 @@ export async function createReceiveRequest(
     // Falling through to undefined here produced a bare address with no
     // amount, so a user asking to receive a specific sum got an address the
     // sender had to fill in by hand.
+    //
+    // The two variants do NOT take the same unit. `payerAmountSat` is an
+    // integer in sats; `payerAmount` is in the asset's own units. `amountSat`
+    // arrives here in smallest units for every asset, so the asset branch has
+    // to divide by the asset's precision first — passing it raw asked for
+    // 10,000,000 USDT when the user wanted 0.1.
     amount: opts.assetId
-      ? { type: "asset", assetId: opts.assetId, payerAmount: opts.amountSat }
+      ? {
+          type: "asset",
+          assetId: opts.assetId,
+          payerAmount:
+            opts.amountSat !== undefined
+              ? toAssetUnits(opts.amountSat, opts.assetId)
+              : undefined,
+        }
       : opts.amountSat !== undefined
         ? { type: "bitcoin", payerAmountSat: opts.amountSat }
         : undefined,

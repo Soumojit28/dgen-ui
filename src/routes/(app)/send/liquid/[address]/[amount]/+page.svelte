@@ -10,7 +10,7 @@
   } from "$lib/walletService";
   import { prepareSend, sendPayment } from "$lib/rails";
   import { sendGateStore } from "$lib/sendGate";
-  import { ASSET_IDS } from "$lib/assets";
+  import { ASSET_IDS, toAssetUnits } from "$lib/assets";
   import { onMount } from "svelte";
 
   let { data } = $props();
@@ -76,14 +76,16 @@
           // Sending USDT. $lib/rails' prepareSend only supports the native
           // asset (LBTC) amount shape, not an arbitrary token amount, so
           // USDT keeps calling the Liquid SDK directly here.
-          const usdtAssetId =
-            "ce091c998b83c78bb71a632313ba3760f1763d9cfcffae02258ffa9865a37bd2";
           const prepareRequest = {
             destination: address,
             amount: {
               type: "asset",
-              toAsset: usdtAssetId,
-              receiverAmount: amountSat / 100000000, // Convert from smallest unit to USDT amount
+              toAsset: ASSET_IDS.USDT,
+              // receiverAmount is in the asset's own units, not its smallest
+              // unit. Divided through the asset's recorded precision rather
+              // than a literal 1e8, so an asset with different precision
+              // cannot silently send the wrong amount.
+              receiverAmount: toAssetUnits(amountSat, ASSET_IDS.USDT),
               estimateAssetFees: true, // Estimate fees in USDT
             },
           };
