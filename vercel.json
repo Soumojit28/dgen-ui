@@ -18,8 +18,11 @@
           "key": "Permissions-Policy",
           "value": "geolocation=(), microphone=(), camera=()"
         },
-        { "key": "Cross-Origin-Embedder-Policy", "value": "require-corp" },
-        { "key": "Cross-Origin-Opener-Policy", "value": "same-origin" },
+        {
+          "_comment": "No Cross-Origin-Embedder-Policy. require-corp demands every cross-origin resource opt in via CORP/COEP; the SwapSpace widget sends neither, so the swap iframe was refused. Its only real benefit is SharedArrayBuffer isolation, which neither Breez SDK uses.",
+          "key": "Cross-Origin-Opener-Policy",
+          "value": "same-origin"
+        },
         { "key": "Cross-Origin-Resource-Policy", "value": "same-origin" }
       ]
     }

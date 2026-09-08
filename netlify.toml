@@ -26,8 +26,12 @@
     Referrer-Policy = "no-referrer"
     # Permissions policy - disable unnecessary browser features
     Permissions-Policy = "geolocation=(), microphone=(), camera=()"
-    # Cross-Origin policies for additional isolation
-    Cross-Origin-Embedder-Policy = "require-corp"
+    # Cross-Origin policies for additional isolation.
+    # NOT Cross-Origin-Embedder-Policy: require-corp. It demands that every
+    # cross-origin resource opt in via CORP/COEP, and the SwapSpace widget
+    # sends neither, so the swap iframe was refused with "swapspace.co can not
+    # connect". Its only real benefit is cross-origin isolation for
+    # SharedArrayBuffer, and neither Breez SDK uses SAB.
     Cross-Origin-Opener-Policy = "same-origin"
     Cross-Origin-Resource-Policy = "same-origin"
 
