@@ -60,22 +60,38 @@ function buildConfig(): sparkSdk.Config {
 }
 
 /**
- * Spark network health. Requires no SDK instance, so it can be called
- * before or independently of connecting. Breez's production checklist
- * requires surfacing this.
+ * The www host, deliberately, not the apex.
  *
- * It does, however, require the wasm module: `getSparkStatus` is a free
- * export whose glue dereferences the module-level `wasm` binding, which
- * stays undefined until `init()` runs. The status banner calls this from
- * onMount, long before the layout finishes deriving the wallet and calling
- * connect(), so without initWasm() here the first check on every page load
- * threw on an undefined binding and reported "unknown".
+ * The SDK's own `getSparkStatus()` requests `https://spark.money/api/v1/status`,
+ * which answers 301 to this host. That redirect is served by a plain CDN rule
+ * and carries no `access-control-allow-origin`, and a browser applies the CORS
+ * check to EVERY hop of a redirect chain — so the request dies on the 301 as an
+ * opaque "TypeError: Failed to fetch". Verified on the deployed app: the apex
+ * 301 has no ACAO header, the www response has `access-control-allow-origin: *`,
+ * and curl succeeds on both because it does not enforce CORS. The banner
+ * therefore told every user the network was unreachable while Spark itself was
+ * reporting "operational".
+ *
+ * Requesting www directly skips the redirect entirely. Revisit if the SDK stops
+ * hardcoding the apex.
+ */
+const SPARK_STATUS_URL = "https://www.spark.money/api/v1/status";
+
+/**
+ * Spark network health. Breez's production checklist requires surfacing this.
+ *
+ * Fetched directly rather than through the SDK, for the CORS reason above. A
+ * side benefit: this no longer needs the wasm module, so the status banner can
+ * resolve immediately on page load instead of waiting on `init()`.
  */
 export async function getSparkNetworkStatus(): Promise<sparkSdk.ServiceStatus> {
   try {
-    await initWasm();
-    const status = await sparkSdk.getSparkStatus();
-    return status.status ?? "unknown";
+    const response = await fetch(SPARK_STATUS_URL);
+    if (!response.ok) {
+      throw new Error(`status endpoint returned ${response.status}`);
+    }
+    const body = (await response.json()) as { status?: string };
+    return (body.status ?? "unknown") as sparkSdk.ServiceStatus;
   } catch (error) {
     sdkLogger.warn("[rails/spark] status check failed:", error);
     return "unknown";
