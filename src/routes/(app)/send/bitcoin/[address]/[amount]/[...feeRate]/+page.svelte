@@ -7,7 +7,6 @@
   import { goto } from "$app/navigation";
   import { rate } from "$lib/store";
   import { walletBalance } from "$lib/stores/wallet";
-  import { recommendedFees } from "$lib/walletService";
   import { prepareSend, sendPayment } from "$lib/rails";
 
   import Amount from "$comp/Amount.svelte";
@@ -16,66 +15,42 @@
 
   // Get params from server
   let { address, amount } = $derived(data);
-  // NOTE: feeRate (and the preset/custom sat-per-vB UI below) no longer
-  // affects the prepared payment. `$lib/rails`' prepareSend(destination,
-  // amountSat) has no fee-rate parameter — Spark picks its own withdrawal
-  // fee. Left in place pending a follow-up decision on whether to remove
-  // this control or extend the rail API to accept it.
-  let feeRate = $state(data.feeRate || 20);
 
   // State for UI
   let loading = $state(true);
   let submitting = $state(false);
   let error = $state("");
   let preparedPayment = $state(null);
-  let fee = $state(0);
-  let fees = $state({
-    hourFee: 5, // Economy
-    halfHourFee: 10, // Normal
-    fastestFee: 20, // Priority
-  });
-  let selectedPreset = $state("priority");
+
+  // Spark prices all three confirmation speeds in a single prepare, so
+  // changing speed is a local read — no re-prepare, no second round trip.
+  // `medium` matches what Spark uses when no speed is sent, so the figure on
+  // screen before the user touches anything is the one they would be charged.
+  const SPEEDS = [
+    { key: "slow", label: "Economy" },
+    { key: "medium", label: "Normal" },
+    { key: "fast", label: "Priority" },
+  ];
+  let selectedSpeed = $state("medium");
+
+  // The route still carries a legacy sat/vB segment from the Liquid era.
+  // Spark quotes a flat fee per speed instead of taking a rate, so the
+  // parameter is ignored rather than silently applied to something it does
+  // not mean.
+  let onchainFees = $derived(preparedPayment?.onchainFees ?? null);
+  let fee = $derived(
+    onchainFees
+      ? (onchainFees[selectedSpeed] ?? 0)
+      : (preparedPayment?.feeSat ?? 0),
+  );
 
   // User's currency from page store
   let currency = $derived($page.data.user?.currency || "USD");
 
   // Initialize on mount
   onMount(async () => {
-    await fetchRecommendedFees();
     await prepareOnchainPayment(0);
   });
-
-  // Fetch recommended fees from SDK with timeout
-  async function fetchRecommendedFees() {
-    try {
-      // Add 10 second timeout for fee fetching
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("Fee fetch timeout")), 10000),
-      );
-
-      const recommended = await Promise.race([
-        recommendedFees(),
-        timeoutPromise,
-      ]);
-
-      console.log("Recommended fees from SDK:", recommended);
-
-      // Update our fee presets with actual recommended values
-      fees = {
-        hourFee: Number(recommended.hourFee) || 5, // Economy
-        halfHourFee: Number(recommended.halfHourFee) || 10, // Normal
-        fastestFee: Number(recommended.fastestFee) || 20, // Priority
-      };
-
-      // Set default fee rate to priority (fastestFee)
-      if (!feeRate) {
-        feeRate = fees.fastestFee;
-      }
-    } catch (e) {
-      console.error("Failed to fetch recommended fees:", e);
-      // Keep default values if fetch fails
-    }
-  }
 
   // Prepare the onchain payment with timeout and retry
   async function prepareOnchainPayment(retryCount = 0) {
@@ -87,9 +62,8 @@
       error = "";
 
       // Prepare the send via the rail router. The router sends the Bitcoin
-      // address to Spark, which handles the withdrawal internally — Spark
-      // chooses its own withdrawal fee, so a custom sat/vB rate is no
-      // longer forwarded here (see feeRate note below).
+      // address to Spark, whose prepare returns a quote covering all three
+      // confirmation speeds at once — the chosen speed is applied at send.
       const prepareTimeoutPromise = new Promise((_, reject) =>
         setTimeout(
           () =>
@@ -107,9 +81,6 @@
         prepareTimeoutPromise,
       ]);
       console.log("Prepare response:", preparedPayment);
-
-      // Extract fee information
-      fee = preparedPayment.feeSat || 0;
     } catch (e) {
       console.error("Onchain payment preparation error:", e);
       const errorMsg = e.message || "Failed to prepare payment";
@@ -149,8 +120,10 @@
       submitting = true;
       error = "";
 
-      // Send the onchain payment
-      const payment = await sendPayment(preparedPayment);
+      // Send the onchain payment at the speed the user picked. Spark falls
+      // back to medium when no speed is supplied, which is the same tier the
+      // screen defaults to.
+      const payment = await sendPayment(preparedPayment, selectedSpeed);
       console.log("Payment response:", payment);
 
       // Check if payment was successful
@@ -166,13 +139,6 @@
     } finally {
       submitting = false;
     }
-  }
-
-  // Update fee rate and re-prepare
-  async function setFee(newRate, preset) {
-    selectedPreset = preset;
-    feeRate = newRate;
-    await prepareOnchainPayment(0);
   }
 
   let goBack = () => window.history.back();
@@ -206,54 +172,22 @@
       <h2 class="text-secondary text-lg">{$t("payments.networkFee")}</h2>
 
       <div class="flex flex-col gap-2 items-center">
-        {#if fees}
+        {#if onchainFees}
           <div class="flex flex-wrap gap-2 justify-center text-sm">
-            <button
-              type="button"
-              onclick={() => setFee(fees.hourFee || 5, "economy")}
-              class="px-3 py-1 rounded {selectedPreset === 'economy'
-                ? 'bg-accent text-white'
-                : 'bg-gray-200 text-black dark:bg-gray-700 dark:text-white'}"
-            >
-              Economy ({fees.hourFee || 5} sat/vB)
-            </button>
-            <button
-              type="button"
-              onclick={() => setFee(fees.halfHourFee || 10, "normal")}
-              class="px-3 py-1 rounded {selectedPreset === 'normal'
-                ? 'bg-accent text-white'
-                : 'bg-gray-200 text-black dark:bg-gray-700 dark:text-white'}"
-            >
-              Normal ({fees.halfHourFee || 10} sat/vB)
-            </button>
-            <button
-              type="button"
-              onclick={() => setFee(fees.fastestFee || 20, "priority")}
-              class="px-3 py-1 rounded {selectedPreset === 'priority'
-                ? 'bg-accent text-white'
-                : 'bg-gray-200 text-black dark:bg-gray-700 dark:text-white'}"
-            >
-              Priority ({fees.fastestFee || 20} sat/vB)
-            </button>
+            {#each SPEEDS as speed (speed.key)}
+              <button
+                type="button"
+                onclick={() => (selectedSpeed = speed.key)}
+                aria-pressed={selectedSpeed === speed.key}
+                class="px-3 py-1 rounded {selectedSpeed === speed.key
+                  ? 'bg-accent text-white'
+                  : 'bg-gray-200 text-black dark:bg-gray-700 dark:text-white'}"
+              >
+                {speed.label} ({s(onchainFees[speed.key])} sats)
+              </button>
+            {/each}
           </div>
         {/if}
-
-        <div class="flex items-center gap-2">
-          <input
-            type="number"
-            bind:value={feeRate}
-            onchange={() => {
-              selectedPreset = "custom";
-              setFee(feeRate);
-            }}
-            min="1"
-            max="1000"
-            step="1"
-            class="w-24 px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-center"
-            placeholder="Custom"
-          />
-          <span class="text-sm text-secondary">sat/vB</span>
-        </div>
 
         <Amount amount={fee} rate={$rate} {currency} />
       </div>

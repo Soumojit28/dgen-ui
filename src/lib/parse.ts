@@ -96,7 +96,9 @@ export default async (s, host) => {
         }
 
         case "bolt12Offer": {
-          // BOLT12 offers - redirect to send page
+          // Spark cannot pay a BOLT12 offer. Still route to the send screen
+          // rather than failing here, so the explanation reaches the user in
+          // the one place that already renders payment errors.
           redirect(307, `/send/lightning/${t}`);
           break;
         }

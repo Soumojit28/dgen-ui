@@ -66,6 +66,42 @@ export async function disconnectRails(): Promise<void> {
 }
 
 /**
+ * How fast an on-chain Bitcoin send should confirm. Mirrors Spark's
+ * OnchainConfirmationSpeed; the send screen offers all three.
+ */
+export type OnchainSpeed = "slow" | "medium" | "fast";
+
+/**
+ * Total sats for one tier of a Spark on-chain fee quote.
+ *
+ * A tier carries two separate figures and the user pays both. Reading only
+ * `userFeeSat` understates the cost by the L1 broadcast fee.
+ */
+function speedFeeSat(quote: unknown): number {
+  const q = quote as
+    | { userFeeSat?: number; l1BroadcastFeeSat?: number }
+    | undefined;
+  return Number(q?.userFeeSat ?? 0) + Number(q?.l1BroadcastFeeSat ?? 0);
+}
+
+/**
+ * The three confirmation-speed prices for an on-chain send, or undefined for
+ * every other payment method. Doubles as the gate in `sendPayment` for
+ * whether a confirmation speed may be sent at all.
+ */
+function onchainFeesFrom(
+  paymentMethod: unknown,
+): Record<OnchainSpeed, number> | undefined {
+  const m = paymentMethod as any;
+  if (m?.type !== "bitcoinAddress" || !m.feeQuote) return undefined;
+  return {
+    slow: speedFeeSat(m.feeQuote.speedSlow),
+    medium: speedFeeSat(m.feeQuote.speedMedium),
+    fast: speedFeeSat(m.feeQuote.speedFast),
+  };
+}
+
+/**
  * The fee for a prepared Spark payment, in sats.
  *
  * Each SendPaymentMethod variant carries its fee in a different field, and an
@@ -74,8 +110,8 @@ export async function disconnectRails(): Promise<void> {
  * silently reported 0 for on-chain Bitcoin sends, so the user saw "no fee"
  * and was then charged real miner fees.
  *
- * The medium quote is used because sendPayment defaults to medium speed when
- * no OnchainConfirmationSpeed is supplied.
+ * The medium quote is the headline figure because sendPayment defaults to
+ * medium when no OnchainConfirmationSpeed is supplied.
  */
 function sparkFeeSat(paymentMethod: unknown): number {
   const m = paymentMethod as any;
@@ -84,10 +120,8 @@ function sparkFeeSat(paymentMethod: unknown): number {
       return (
         Number(m.lightningFeeSats ?? 0) + Number(m.sparkTransferFeeSats ?? 0)
       );
-    case "bitcoinAddress": {
-      const q = m.feeQuote?.speedMedium;
-      return Number(q?.userFeeSat ?? 0) + Number(q?.l1BroadcastFeeSat ?? 0);
-    }
+    case "bitcoinAddress":
+      return speedFeeSat(m.feeQuote?.speedMedium);
     case "sparkAddress":
     case "sparkInvoice":
       return Number(m.fee ?? 0);
@@ -104,6 +138,12 @@ export interface PreparedSend {
   amountSat: number;
   feeSat: number;
   destination: string;
+  /**
+   * Spark on-chain Bitcoin sends only: what each confirmation speed costs, in
+   * sats. Absent for every other payment method, which is what makes it a safe
+   * gate for passing a speed back to `sendPayment`.
+   */
+  onchainFees?: Record<OnchainSpeed, number>;
   /** Rail-specific prepare response, passed straight back to sendPayment. */
   raw: unknown;
 }
@@ -131,6 +171,7 @@ export async function prepareSend(
       amountSat: Number(prepared.amount ?? 0),
       feeSat,
       destination,
+      onchainFees: onchainFeesFrom(prepared.paymentMethod),
       raw: prepared,
     };
   }
@@ -160,15 +201,28 @@ export async function prepareSend(
  * The send gate is per-rail. Liquid keeps the existing UTXO-conflict gate;
  * Spark is not UTXO-based, so gating it there would slow Lightning for no
  * benefit.
+ *
+ * `speed` applies only to an on-chain Bitcoin send. Omitting it leaves Spark
+ * on its medium default, which is the figure `feeSat` reported.
  */
 export async function sendPayment(
   prepared: PreparedSend,
+  speed?: OnchainSpeed,
 ): Promise<RailPayment> {
   if (prepared.rail === "spark") {
     const sdk = getSparkSdk();
     if (!sdk) throw new Error("Spark rail unavailable");
+    // SendPaymentOptions is a tagged union, so handing the bitcoinAddress
+    // variant to a Lightning send is rejected outright. `onchainFees` is set
+    // only by an on-chain prepare, which makes it the correct gate — checking
+    // `speed` alone would let a caller break every other payment method.
+    const options =
+      speed && prepared.onchainFees
+        ? ({ type: "bitcoinAddress", confirmationSpeed: speed } as const)
+        : undefined;
     const response = await sdk.sendPayment({
       prepareResponse: prepared.raw as any,
+      ...(options ? { options } : {}),
     });
     return toSparkPayment(response.payment);
   }

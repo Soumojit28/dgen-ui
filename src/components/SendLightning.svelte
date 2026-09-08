@@ -161,19 +161,13 @@
           maxSendable,
         );
       } else if (parsed?.type === "bolt12Offer" || parsed?.offer) {
-        // Handle BOLT12 Offer (Lightning addresses registered with Breez return this)
-        isLightningAddress = true;
-        isAmountlessInvoice = false;
-
-        // No standing limits call; Spark reports fees and constraints at
-        // prepare time. Keep the range wide open here.
-        minSendable = 1;
-        maxSendable = Infinity;
-
-        // Set default amount to a reasonable value
-        amountSat = 1000;
-
-        devLog("[SendLightning] BOLT12 offer detected, awaiting amount");
+        // Spark parses a BOLT12 offer but cannot pay one: SendPaymentMethod
+        // has no BOLT12 variant, so prepareSendPayment rejects it. Say so
+        // here rather than letting the user pick an amount, press Send, and
+        // meet a raw SDK error at the last step.
+        error =
+          "BOLT12 offers aren't supported yet. Ask the recipient for a Lightning invoice or their Lightning address instead.";
+        devLog("[SendLightning] BOLT12 offer rejected — unsupported by Spark");
       } else {
         error = `Unsupported payment type: ${parsed?.type || "unknown"}`;
       }
@@ -208,7 +202,6 @@
     if (
       !parsed?.lnUrlPay &&
       parsed?.type !== "lnUrlPay" &&
-      !parsed?.offer &&
       !isAmountlessInvoice
     )
       return;
@@ -242,10 +235,6 @@
         );
         preparedForAmountSat = safeAmountSat;
         devLog("[SendLightning] Amountless invoice prepared");
-      } else if (parsed.type === "bolt12Offer" || parsed.offer) {
-        // Prepare BOLT12 payment
-        preparedPayment = await prepareSend(parsed.offer.offer, safeAmountSat);
-        devLog("[SendLightning] BOLT12 payment prepared");
       }
     } catch (e) {
       console.error("Failed to prepare payment:", e);
@@ -311,7 +300,7 @@
           await goto("/payments");
         }
       } else {
-        // Execute regular Lightning payment or BOLT12 payment
+        // Execute regular Lightning payment
         result = await sendPayment(preparedPayment);
         devLog("[SendLightning] Lightning payment sent");
 

@@ -879,7 +879,7 @@
         >
           <div class="font-semibold mb-2">How it works:</div>
           <ul class="space-y-1 text-white/80">
-            <li>• Your browser generates a reusable BOLT12 offer</li>
+            <li>• Your address is registered against your wallet's own keys</li>
             <li>• Anyone can pay you via username@{lnurlDomain}</li>
             <li>• Works with any Lightning wallet</li>
             <li>• Payments come directly to your DGEN wallet</li>
