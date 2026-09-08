@@ -17,6 +17,22 @@ async function initWasm(): Promise<void> {
   sdkLogger.info("[rails/spark] wasm initialised");
 }
 
+/**
+ * The domain Lightning addresses are registered on.
+ *
+ * Single source of truth for both the SDK config and every screen that
+ * displays an address. The UI used to carry its own `"breez.fun"` fallback
+ * while the SDK fell back to its own default of `breez.tips`, so with
+ * VITE_LNURL_DOMAIN unset a user was shown one domain and registered on
+ * another — the displayed address simply did not exist.
+ *
+ * `breez.tips` is Spark's mainnet default, verified against
+ * `defaultConfig("mainnet")`. Set VITE_LNURL_DOMAIN once the DGEN subdomain
+ * is CNAMEd and allowlisted by Breez.
+ */
+export const LNURL_DOMAIN: string =
+  import.meta.env.VITE_LNURL_DOMAIN || "breez.tips";
+
 function buildConfig(): sparkSdk.Config {
   const config = sparkSdk.defaultConfig("mainnet");
 
@@ -27,12 +43,9 @@ function buildConfig(): sparkSdk.Config {
   }
   config.apiKey = apiKey;
 
-  // Lightning address domain. Breez allowlists this on request; until the
-  // domain is registered, address registration will fail but payments work.
-  const lnurlDomain = import.meta.env.VITE_LNURL_DOMAIN;
-  if (lnurlDomain) {
-    config.lnurlDomain = lnurlDomain;
-  }
+  // Always set it, even when it equals the SDK's own default, so the value
+  // the UI displays and the value the SDK registers on cannot drift apart.
+  config.lnurlDomain = LNURL_DOMAIN;
 
   // Deposits are claimed automatically up to this ceiling. The SDK default
   // is 1 sat/vbyte (~99 sats), below any provider spread, which would leave

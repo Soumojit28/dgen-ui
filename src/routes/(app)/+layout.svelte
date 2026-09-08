@@ -268,9 +268,16 @@
       );
       await refreshBalances();
 
-      // Check if connected successfully
-      if (!walletService.isConnected()) {
-        throw new Error("Failed to connect to wallet SDK");
+      // connectRails degrades the rails independently and throws only when
+      // BOTH fail, so this must not abort on Liquid alone. It used to test
+      // walletService.isConnected(), which is Liquid: a Liquid outage threw
+      // past the rail event subscription below, leaving a perfectly healthy
+      // Spark wallet with no listener, no balance updates, no deposit claims
+      // and a wallet-wide error banner — while Lightning and on-chain Bitcoin,
+      // which live on Spark, were fine. The per-rail state set above is what
+      // the UI reads to explain a partial outage.
+      if (!adapters.spark.isConnected() && !adapters.liquid.isConnected()) {
+        throw new Error("Failed to connect to any payment rail");
       }
 
       // Initialize transaction event handling FIRST to catch dataSynced events

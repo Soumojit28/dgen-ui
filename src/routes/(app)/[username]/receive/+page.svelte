@@ -17,7 +17,7 @@
   import { goto, invalidate } from "$app/navigation";
   import { page } from "$app/stores";
   import { getWalletInfo, setupLightningAddress } from "$lib/walletService";
-  import { createReceiveRequest } from "$lib/rails";
+  import { createReceiveRequest, LNURL_DOMAIN } from "$lib/rails";
   import {
     lnAddressStore,
     hasValidAddress,
@@ -504,9 +504,13 @@
     }
     // LNURL/Lightning Address is static - just show the address
     else if (type === "lnurl") {
-      // Get the domain from the URL config
-      const domain = window.location.hostname;
-      invoiceText = `${username}@${domain}`;
+      // Show the address that is actually registered. This used to compose
+      // `${username}@${window.location.hostname}`, which is the site's own
+      // host — on every deployment whose hostname is not the LNURL domain
+      // (any preview or demo URL, and production too) that produced an
+      // address nobody could pay. Fall back to the configured LNURL domain
+      // only when no registration has loaded yet.
+      invoiceText = lightningAddress || `${username}@${LNURL_DOMAIN}`;
       hash = "";
       $showQr = true;
       updating = false;

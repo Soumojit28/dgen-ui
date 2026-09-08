@@ -9,10 +9,11 @@
   import {
     registerLightningAddress,
     checkLightningAddressAvailable,
+    LNURL_DOMAIN,
     type SparkLightningAddress,
   } from "$lib/rails";
   import { success, fail } from "$lib/utils";
-  import { PUBLIC_DGEN_URL, PUBLIC_DOMAIN } from "$env/static/public";
+  import { PUBLIC_DGEN_URL } from "$env/static/public";
 
   interface Props {
     currentUsername: string;
@@ -27,8 +28,11 @@
   let validationError = $state<string | null>(null);
   let showConfirmation = $state(false);
 
-  const domain =
-    import.meta.env.VITE_LNURL_DOMAIN || PUBLIC_DOMAIN || "breez.fun";
+  // PUBLIC_DOMAIN is the site's own hostname, not the LNURL domain, so it was
+  // never a valid fallback here — on any deployment where the two differ it
+  // offered the user an address nobody could pay. LNURL_DOMAIN is the value
+  // the SDK actually registers on.
+  const domain = LNURL_DOMAIN;
 
   // Validation
   const validateUsername = (value: string): string | null => {

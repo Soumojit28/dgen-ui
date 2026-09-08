@@ -12,6 +12,23 @@ let token;
 
 export const auth = () => token && send("login", token);
 
+/**
+ * Pull fresh balances from both rails after a server-announced payment.
+ *
+ * Imported lazily because `$lib/stores/rails` reaches the SDKs, and this
+ * module is loaded on paths that must not drag the wallet in. A failure here
+ * must never break the notification or navigation that follows it, so it
+ * logs and returns rather than rejecting.
+ */
+async function refreshRailBalances(): Promise<void> {
+  try {
+    const { refreshBalances } = await import("$lib/stores/rails");
+    await refreshBalances();
+  } catch (e) {
+    console.warn("[Socket] Balance refresh after payment failed:", e);
+  }
+}
+
 export const send = async (type, data) => {
   if (!socket || socket.readyState !== 1) {
     try {
@@ -88,6 +105,13 @@ export const messages = (data) => ({
     invalidate("app:invoice");
     invalidate("app:payments");
 
+    // invalidate() only re-runs SvelteKit load functions; the balance on
+    // screen comes from the SDKs, not from server data. Without this the
+    // server can announce "payment received" while the displayed balance
+    // stays exactly as it was — the toast and the number disagreeing is the
+    // single most alarming thing a wallet can show.
+    void refreshRailBalances();
+
     // Update the invoice store if we're on the relevant invoice page
     const currentInvoice = get(invoice);
     if (currentInvoice && invoiceData && currentInvoice.id === invoiceData.id) {
@@ -134,6 +158,9 @@ export const messages = (data) => ({
     invalidate("app:user");
     invalidate("app:invoice");
     invalidate("app:payments");
+
+    // See paymentReceived: load invalidation does not touch SDK balances.
+    void refreshRailBalances();
 
     // Update the invoice store if viewing this invoice
     const currentInvoice = get(invoice);

@@ -1,9 +1,9 @@
 <script>
   import { onMount } from "svelte";
 
-  // The Lightning address domain is configured per deployment (CNAMEd to the
-  // provider and allowlisted by them). It is no longer the shared breez.fun.
-  const lnurlDomain = import.meta.env.VITE_LNURL_DOMAIN || "breez.fun";
+  // One value drives both the SDK config and this display, so what is shown
+  // here is always the domain a registration actually lands on.
+  import { LNURL_DOMAIN as lnurlDomain } from "$lib/rails";
   import { page } from "$app/stores";
   import { getWalletInfo, UsernameConflictError } from "$lib/walletService";
   import {
