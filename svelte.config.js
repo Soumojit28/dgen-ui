@@ -27,6 +27,13 @@ if (!process.env.PUBLIC_WIDGET_API_BASE) {
   );
 }
 
+// The Lightning-address domain the Spark SDK registers on and then fetches
+// LNURL metadata from. It MUST match src/lib/rails/spark.ts's LNURL_DOMAIN,
+// including its default — the SDK's own mainnet default is breez.tips, and
+// leaving that host out of connect-src blocked the metadata fetch outright,
+// which surfaced as a wasm abort inside the SDK rather than a clean error.
+const lnurlDomain = process.env.VITE_LNURL_DOMAIN || "breez.tips";
+
 const connectSrc = [
   "self",
   "https://*.railway.app",
@@ -39,7 +46,10 @@ const connectSrc = [
   "https://*.breez.technology",
   "https://*.breez.technology:*",
   "wss://*.breez.technology",
+  // breez.fun is the pre-migration domain; addresses registered there still
+  // resolve, so it stays alongside the current one.
   "https://breez.fun",
+  `https://${lnurlDomain}`,
   // Spark rail operators. Spark signs across a threshold set of three
   // independent hosts, only one of which is a Breez domain covered by the
   // wildcard above. With the other two blocked, Lightning and on-chain BTC
