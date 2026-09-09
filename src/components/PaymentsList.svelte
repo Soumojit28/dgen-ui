@@ -41,13 +41,24 @@
 
   // Initialize on mount
   onMount(async () => {
-    // Wait for SDK to be ready
+    // Wait for EITHER rail to be ready.
+    //
+    // This used to await walletService.waitForSdk(), which is Liquid. On a
+    // wallet whose funds are on Spark, that returned false and the component
+    // took the "SDK not ready, showing empty state" branch — never calling
+    // loadTransactions at all, so history stayed blank no matter how many
+    // Lightning payments had arrived.
     const waitForSdkReady = async () => {
       try {
-        const { waitForSdk } = await import("$lib/walletService");
-        return await waitForSdk();
+        const { adapters } = await import("$lib/rails");
+        const anyConnected = () =>
+          adapters.spark.isConnected() || adapters.liquid.isConnected();
+        for (let attempt = 0; attempt < 20 && !anyConnected(); attempt++) {
+          await new Promise((resolve) => setTimeout(resolve, 500));
+        }
+        return anyConnected();
       } catch (error) {
-        console.warn("[PaymentsList] Error checking SDK connection:", error);
+        console.warn("[PaymentsList] Error checking rail connection:", error);
         return false;
       }
     };
@@ -73,8 +84,15 @@
       const { walletStore } = await import("$lib/stores/wallet");
 
       // Check if initial sync is already complete
+      // didCompleteInitialSync is driven by the LIQUID sync event, so a wallet
+      // with no Liquid connection would sit here for the full 30s timeout
+      // before showing any Spark history. Skip the wait in that case.
+      const { adapters } = await import("$lib/rails");
       const currentState = get(walletStore);
-      if (!currentState.didCompleteInitialSync) {
+      if (
+        !currentState.didCompleteInitialSync &&
+        adapters.liquid.isConnected()
+      ) {
         // Wait for initial sync by waiting for the synced event
         await new Promise((resolve) => {
           const unsubscribe = walletStore.subscribe((state) => {
