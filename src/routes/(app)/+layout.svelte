@@ -49,6 +49,7 @@
     railState,
   } from "$lib/stores/rails";
   import { notifyPaymentReceived } from "$lib/stores/paymentEvents";
+  import { toLegacyPayment } from "$lib/rails/legacy";
 
   let { data, children } = $props();
 
@@ -312,8 +313,22 @@
               event.type === "paymentFailed"
             ) {
               void refreshAndBroadcast();
+              // Balances are not the payments list. Without this the payment
+              // that just arrived does not appear in history until something
+              // else happens to refresh it.
+              void transactions.refresh();
+              // Hand over the NORMALISED payment, not `raw`.
+              //
+              // Every consumer of this event reads `amountSat` — the
+              // payment-received screen and the toast both do. A raw Spark
+              // payment has no such field; it carries `amount` as a bigint.
+              // So a Lightning receive rendered as "0.00000000 BTC" while a
+              // Liquid one looked fine, because raw Liquid payments DO have
+              // amountSat. toLegacyPayment keeps the legacy aliases and
+              // `raw` alongside the normalised names, so nothing downstream
+              // loses a field it was reading.
               notifyPaymentReceived(
-                event.payment.raw,
+                toLegacyPayment(event.payment),
                 event.type === "paymentSucceeded" ? "confirmed" : "pending",
               );
             }

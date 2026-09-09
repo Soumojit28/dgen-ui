@@ -126,9 +126,12 @@ export const messages = (data) => ({
       );
       notifyPaymentReceived(
         {
+          // Spread FIRST. The other way round, a payment carrying its own
+          // `amountSat` key — even an undefined one — overwrites the figure
+          // computed above, and the receipt screen renders 0.
+          ...payment,
           amountSat: amount,
           paymentType: "receive",
-          ...payment,
         },
         "confirmed",
       );
