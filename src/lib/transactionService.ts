@@ -289,8 +289,23 @@ function createTransactionStore() {
 
         // Fetch from SDK if cache is empty or forcing refresh
         if (transactions.length === 0 || forceRefresh) {
-          // Check if SDK is connected
-          if (walletService.isConnected()) {
+          // BOTH rails. This used to read walletService alone — the Liquid
+          // SDK — so every Lightning and on-chain Bitcoin payment was absent
+          // from history entirely. On a wallet whose funds live on Spark and
+          // whose Liquid side is empty, that is a completely blank list.
+          //
+          // Liquid keeps its own call rather than going through allPayments():
+          // it accepts the date filter server-side and returns the SDK's full
+          // status vocabulary (refunded, waitingFeeAcceptance), which the
+          // normalised RailPayment status collapses. Spark is appended and
+          // date-filtered here instead.
+          const { adapters } = await import("$lib/rails");
+          const { toLegacyPayment } = await import("$lib/rails/legacy");
+
+          const liquidConnected = walletService.isConnected();
+          const sparkConnected = adapters.spark.isConnected();
+
+          if (liquidConnected || sparkConnected) {
             // Get current filter state to pass timestamps to SDK
             const currentState = get({ subscribe });
             const filter = currentState.filter;
@@ -308,13 +323,66 @@ function createTransactionStore() {
               );
             }
 
-            transactions = await walletService.getTransactions(sdkFilter);
+            const [liquidResult, sparkResult] = await Promise.allSettled([
+              liquidConnected
+                ? walletService.getTransactions(sdkFilter)
+                : Promise.resolve([]),
+              sparkConnected
+                ? adapters.spark.listPayments(100)
+                : Promise.resolve([]),
+            ]);
+
+            if (liquidResult.status === "rejected") {
+              console.warn(
+                "[Transactions] Liquid history failed:",
+                liquidResult.reason,
+              );
+            }
+            if (sparkResult.status === "rejected") {
+              console.warn(
+                "[Transactions] Spark history failed:",
+                sparkResult.reason,
+              );
+            }
+
+            // A failing rail contributes nothing rather than emptying the
+            // whole list — the other rail's history is still worth showing.
+            const liquidTx =
+              liquidResult.status === "fulfilled" ? liquidResult.value : [];
+            const sparkTx = (
+              sparkResult.status === "fulfilled" ? sparkResult.value : []
+            )
+              .filter((p) => {
+                // The date filter went to the Liquid SDK as a request
+                // parameter; Spark's listPayments takes no such filter, so the
+                // same window is applied here or the two rails would disagree
+                // about which range the list is showing.
+                if (
+                  sdkFilter.fromTimestamp &&
+                  p.timestamp < sdkFilter.fromTimestamp
+                )
+                  return false;
+                if (
+                  sdkFilter.toTimestamp &&
+                  p.timestamp > sdkFilter.toTimestamp
+                )
+                  return false;
+                return true;
+              })
+              .map(toLegacyPayment);
+
+            transactions = [...liquidTx, ...(sparkTx as any[])].sort(
+              (a: any, b: any) =>
+                (b.paymentTime || b.timestamp || 0) -
+                (a.paymentTime || a.timestamp || 0),
+            ) as breezSdk.Payment[];
+
             // Only log on initial load or significant changes
             if (transactions.length === 0 || forceRefresh) {
               console.log(
                 "[Transactions] Loaded",
                 transactions.length,
-                "transactions",
+                `transactions (liquid ${liquidTx.length}, spark ${sparkTx.length})`,
               );
             }
 
