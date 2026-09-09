@@ -216,7 +216,33 @@
     let isUSDT = false;
     const details = payment.details; // Define details at function scope
 
-    if (details) {
+    // Spark payments first. The details-based detection below reads the
+    // LIQUID SDK's discriminated union (bitcoin | lightning | liquid), but a
+    // Spark payment's union is spark | lightning | token | deposit | withdraw.
+    // Only "lightning" overlaps, so an on-chain Spark deposit or withdrawal
+    // matched nothing, fell through to the default, and was labelled
+    // "Lightning". The normalised `rail` and `method` that toLegacyPayment
+    // carries say exactly what it is, so use them rather than guessing from a
+    // union that belongs to the other SDK.
+    if (payment.rail === "spark") {
+      switch (payment.method) {
+        case "onchain":
+          paymentIcon = "bitcoin";
+          paymentTypeLabel = "Bitcoin";
+          break;
+        case "spark":
+          paymentIcon = "lightning";
+          paymentTypeLabel = "Spark";
+          break;
+        case "token":
+          paymentIcon = "liquid";
+          paymentTypeLabel = "Token";
+          break;
+        default:
+          paymentIcon = "lightning";
+          paymentTypeLabel = "Lightning";
+      }
+    } else if (details) {
       const detailsType = details.type;
 
       // Breez SDK uses a discriminated union for PaymentDetails with these types:
