@@ -87,15 +87,15 @@ class TransactionCache {
     const store = transaction.objectStore(this.storeName);
 
     for (const tx of transactions) {
-      // Ensure each transaction has an id field for IndexedDB
-      const txWithId = {
-        ...tx,
-        id:
-          tx.id ||
-          tx.paymentHash ||
-          tx.details?.paymentHash ||
-          `payment_${(tx as any).paymentTime ?? (tx as any).timestamp ?? 0}_${tx.amountSat}_${tx.paymentType}`,
-      };
+      // Ensure each transaction has an id field for IndexedDB.
+      //
+      // This MUST use the same function the display path uses. It previously
+      // had its own copy of the priority list that omitted txId, so a Liquid
+      // payment with a txId but no paymentHash was written under the
+      // synthesised `payment_<time>_<amount>_<type>` key and read back under
+      // its txId — the same payment stored and looked up under two different
+      // ids, so cache hits missed and duplicates accumulated.
+      const txWithId = { ...tx, id: getPaymentId(tx) };
       store.put(txWithId);
     }
 
