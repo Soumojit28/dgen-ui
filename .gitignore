@@ -24,3 +24,9 @@ spark_data/
 # Vercel build output
 .vercel
 .env*
+
+# Local env dumps (vercel env pull). Never commit — these hold live keys.
+.venv-check
+.v2
+.env.local
+.env*.local
