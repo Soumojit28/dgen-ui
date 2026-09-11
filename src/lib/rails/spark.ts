@@ -6,7 +6,17 @@ import type { RailPaymentStatus, RailPaymentMethod } from "./types";
 
 let sdk: sparkSdk.BreezSdk | null = null;
 let wasmReady = false;
-let connecting = false;
+/**
+ * Which user the live `sdk` belongs to.
+ *
+ * Spark derives its wallet from the seed, so a session left open across an
+ * account switch is not merely stale — it is a different person's money. The
+ * Liquid side has tracked this since before the migration (walletService's
+ * `currentUserId`); Spark did not, and `connect()` returned early whenever an
+ * SDK existed, ignoring the mnemonic it was handed.
+ */
+let currentUserId: string | null = null;
+let connectPromise: Promise<void> | null = null;
 
 const STORAGE_DIR = "./spark_data";
 
@@ -32,6 +42,30 @@ async function initWasm(): Promise<void> {
  */
 export const LNURL_DOMAIN: string =
   import.meta.env.VITE_LNURL_DOMAIN || "breez.tips";
+
+/**
+ * Close the live session and forget whose it was.
+ *
+ * Shared by disconnect() and by connect()'s identity-change path so the two
+ * cannot drift. `sdk` is nulled regardless of whether disconnect() rejects:
+ * leaving it set would keep isConnected() reporting true for a torn-down
+ * session, and connect()'s guard would then no-op forever.
+ */
+async function closeSdk(): Promise<void> {
+  if (!sdk) {
+    currentUserId = null;
+    return;
+  }
+  try {
+    await sdk.disconnect();
+  } catch (error) {
+    sdkLogger.warn("[rails/spark] disconnect failed:", error);
+  } finally {
+    sdk = null;
+    currentUserId = null;
+  }
+  sdkLogger.info("[rails/spark] disconnected");
+}
 
 function buildConfig(): sparkSdk.Config {
   const config = sparkSdk.defaultConfig("mainnet");
@@ -163,40 +197,54 @@ export function toRailPayment(payment: unknown): RailPayment {
 export const sparkAdapter: RailAdapter = {
   rail: "spark",
 
-  async connect(mnemonic: string, _userId?: string): Promise<void> {
-    // _userId is part of the RailAdapter contract for Liquid's benefit;
-    // Spark derives its identity from the seed alone.
-    if (connecting || sdk) return;
+  async connect(mnemonic: string, userId?: string): Promise<void> {
+    const identity = userId ?? null;
+
+    // Already connected as this user: nothing to do.
+    if (sdk && currentUserId === identity && !connectPromise) return;
+
+    // Connected as SOMEBODY ELSE. Tear the old session down rather than
+    // returning early — the previous guard (`if (connecting || sdk) return`)
+    // meant that after an in-app account switch user B kept operating on user
+    // A's Spark wallet: A's balance on screen, A's funds on every send.
+    if (sdk && currentUserId !== identity) {
+      sdkLogger.info("[rails/spark] identity changed, reconnecting");
+      await closeSdk();
+    }
+
+    // Concurrent callers await the attempt in flight. Returning immediately
+    // instead handed the caller a connection that did not exist yet, so its
+    // isConnected() check marked a healthy rail "unavailable" and no event
+    // listener was ever attached.
+    if (connectPromise) return connectPromise;
+
+    connectPromise = (async () => {
+      try {
+        await initWasm();
+        sdk = await sparkSdk.connect({
+          config: buildConfig(),
+          seed: { type: "mnemonic", mnemonic },
+          storageDir: STORAGE_DIR,
+        });
+        currentUserId = identity;
+        sdkLogger.info("[rails/spark] connected");
+      } catch (error) {
+        sdk = null;
+        currentUserId = null;
+        sdkLogger.error("[rails/spark] connection failed:", error);
+        throw error;
+      }
+    })();
+
     try {
-      connecting = true;
-      await initWasm();
-      sdk = await sparkSdk.connect({
-        config: buildConfig(),
-        seed: { type: "mnemonic", mnemonic },
-        storageDir: STORAGE_DIR,
-      });
-      sdkLogger.info("[rails/spark] connected");
-    } catch (error) {
-      sdk = null;
-      sdkLogger.error("[rails/spark] connection failed:", error);
-      throw error;
+      await connectPromise;
     } finally {
-      connecting = false;
+      connectPromise = null;
     }
   },
 
   async disconnect(): Promise<void> {
-    if (!sdk) return;
-    try {
-      await sdk.disconnect();
-    } finally {
-      // Null it regardless. If disconnect() rejects and we leave sdk set,
-      // isConnected() keeps reporting true for a torn-down session and the
-      // connect() guard below no-ops forever — the wallet is stuck until a
-      // page reload. walletService does the same on the Liquid side.
-      sdk = null;
-    }
-    sdkLogger.info("[rails/spark] disconnected");
+    await closeSdk();
   },
 
   isConnected(): boolean {
