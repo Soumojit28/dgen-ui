@@ -103,7 +103,7 @@
 
 {#if !$loading}
   <header
-    class="glass backdrop-blur-xl h-[175px] w-full relative mb-16 !z-30 border-b dark:border-white/10 border-gray-300/50 {bg
+    class="glass backdrop-blur-xl h-[175px] w-full relative mb-16 lg:mb-6 !z-30 border-b dark:border-white/10 border-gray-300/50 {bg
       ? 'dark:bg-black/40 bg-white/40'
       : ''}"
     style:background-image={bg}

@@ -44,11 +44,7 @@
   });
 </script>
 
-<!-- -mt-12 cancels most of AppHeader's mb-16 (64px) so this screen starts
-     just under the header band instead of a long way below it. Scoped to
-     this page rather than changing the shared header, which every other
-     screen is laid out against. -->
-<div class="flex flex-col h-full w-full max-w-3xl mx-auto p-4 -mt-12">
+<div class="flex flex-col h-full w-full max-w-3xl mx-auto p-4">
   <!-- Header -->
   <div class="flex items-center mb-3">
     <button
