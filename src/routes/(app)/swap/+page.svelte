@@ -6,11 +6,51 @@
   let isLoading = $state(true);
   let hasError = $state(false);
   let showSwapInfo = $state(true);
+
+  /**
+   * The widget URL, normalised to the query form and themed.
+   *
+   * Two things make this less trivial than appending a parameter. The
+   * configured value uses SwapSpace's /widget/<key> path form, which answers
+   * 308 to /widget?key=<key> and DROPS the query string on the way — a theme
+   * appended to the path form silently disappears. And without a theme the
+   * widget's own <body> is #333, a light grey slab that sits badly on this
+   * app's near-black background.
+   *
+   * Converting to the query form first keeps the parameter, and any theme
+   * value clears that grey to #110B12. The iframe is cross-origin, so this is
+   * the only lever we have over its background — CSS on our side cannot reach
+   * inside it.
+   */
+  const widgetSrc = $derived.by(() => {
+    const raw = env.PUBLIC_SWAPSPACE_WIDGET_URL;
+    if (!raw) return "";
+    try {
+      const url = new URL(raw);
+      const keyInPath = url.pathname.match(/^\/widget\/([^/]+)\/?$/);
+      if (keyInPath) {
+        url.pathname = "/widget";
+        url.searchParams.set("key", keyInPath[1]);
+      }
+      if (!url.searchParams.has("theme")) {
+        url.searchParams.set("theme", "dark");
+      }
+      return url.toString();
+    } catch {
+      // Malformed value: hand it back untouched. isValidUrl below still gates
+      // whether it is rendered at all.
+      return raw;
+    }
+  });
 </script>
 
-<div class="flex flex-col h-full w-full max-w-3xl mx-auto p-4">
+<!-- -mt-12 cancels most of AppHeader's mb-16 (64px) so this screen starts
+     just under the header band instead of a long way below it. Scoped to
+     this page rather than changing the shared header, which every other
+     screen is laid out against. -->
+<div class="flex flex-col h-full w-full max-w-3xl mx-auto p-4 -mt-12">
   <!-- Header -->
-  <div class="flex items-center mb-6">
+  <div class="flex items-center mb-3">
     <button
       class="btn btn-circle btn-ghost mr-2"
       onclick={back}
@@ -25,7 +65,7 @@
     onclick={() => {
       showSwapInfo = true;
     }}
-    class="mx-auto mb-4 px-3 py-2 w-fit items-center rounded-md text-xs sm:text-sm font-bold text-center bg-gradient-to-r bg-yellow-400/70 border border-yellow-400/50 shadow-lg shadow-yellow-400/50"
+    class="mx-auto mb-3 px-3 py-2 w-fit items-center rounded-md text-xs sm:text-sm font-bold text-center bg-gradient-to-r bg-yellow-400/70 border border-yellow-400/50 shadow-lg shadow-yellow-400/50"
   >
     READ THIS Before Using This Swap / Buy Feature
   </button>
@@ -169,7 +209,7 @@
         {/if}
 
         <iframe
-          src={env.PUBLIC_SWAPSPACE_WIDGET_URL}
+          src={widgetSrc}
           onload={() => (isLoading = false)}
           onerror={() => {
             isLoading = false;
