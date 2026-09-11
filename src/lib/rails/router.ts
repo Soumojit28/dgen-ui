@@ -13,6 +13,20 @@ export interface RailDecision {
  */
 const LIQUID_PREFIXES = ["lq1", "ex1", "vjl", "vt"];
 
+/**
+ * Unconfidential base58 Liquid addresses: P2PKH starts Q, P2SH starts G or H.
+ *
+ * The prefix list above is matched lowercased, which cannot express these —
+ * a bare "g"/"h"/"q" prefix would swallow any unrecognised input beginning
+ * with those letters. Matched case-sensitively against the full base58 shape
+ * instead, which is what the Bitcoin branch below already does.
+ *
+ * Their absence sent these addresses to Spark via the "unrecognised, default
+ * rail" branch, so /send/liquid handed a Liquid address the app had just
+ * validated to an SDK that cannot parse one.
+ */
+const LIQUID_BASE58 = /^[GHQ][1-9A-HJ-NP-Za-km-z]{25,34}$/;
+
 function decideDestination(input: string): RailDecision {
   const trimmed = (input ?? "").trim();
   const lower = trimmed.toLowerCase();
@@ -34,6 +48,10 @@ function decideDestination(input: string): RailDecision {
     LIQUID_PREFIXES.some((p) => lower.startsWith(p))
   ) {
     return { rail: "liquid", reason: "liquid address prefix" };
+  }
+
+  if (LIQUID_BASE58.test(trimmed)) {
+    return { rail: "liquid", reason: "liquid base58 address" };
   }
 
   if (lower.startsWith("lightning:") || lower.startsWith("lnbc")) {

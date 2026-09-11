@@ -24,9 +24,18 @@
     last = false,
     showBuyBitcoin = $bindable(false),
   } = $props();
-  // Show placeholder until initial sync completes
-  // This prevents showing 0.0 balance before sync finishes
-  let isWalletLoading = $derived(!$walletStore?.didCompleteInitialSync);
+  // Show placeholder until we have something real to show.
+  //
+  // didCompleteInitialSync is set ONLY by the Liquid SDK (its synced event, or
+  // getWalletInfo returning a balance). The headline, though, is the SPARK
+  // balance. Gating on Liquid alone meant that during a Liquid outage — the
+  // case this whole migration exists to survive — a funded Spark wallet showed
+  // a loading placeholder forever, over a balance refreshBalances() had
+  // already fetched. Same Liquid-gates-Spark mistake fixed in the layout and
+  // PaymentsList; this was the third instance.
+  let isWalletLoading = $derived(
+    !$walletStore?.didCompleteInitialSync && !$sparkAvailable,
+  );
   let currency = $derived(user?.currency || "USD");
   let unit = $state(currency); // Default to fiat currency display
   let isHovered = $state(false);

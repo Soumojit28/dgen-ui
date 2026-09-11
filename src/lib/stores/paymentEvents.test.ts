@@ -46,6 +46,21 @@ describe("notifyPaymentReceived settlement guard", () => {
     expect(get(paymentReceived)?.payment.amountSat).toBe(11);
   });
 
+  it("does not suppress a second same-amount payment once the window passes", () => {
+    // The guard can only key on amount, so a wide window swallowed genuine
+    // repeat payments — identical round amounts are the common case.
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
+      notifyPaymentReceived({ amountSat: 1000 }, "complete");
+      vi.setSystemTime(new Date("2026-01-01T00:00:11Z")); // > 10s window
+      notifyPaymentReceived({ amountSat: 1000 }, "pending");
+      expect(get(paymentReceived)?.status).toBe("pending");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("does not suppress when the amount is unknown", () => {
     // No amount means no identity to match on, so the guard must stay out of
     // the way rather than silently dropping a notification.

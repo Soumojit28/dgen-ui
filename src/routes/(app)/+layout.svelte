@@ -327,10 +327,26 @@
               // amountSat. toLegacyPayment keeps the legacy aliases and
               // `raw` alongside the normalised names, so nothing downstream
               // loses a field it was reading.
-              notifyPaymentReceived(
-                toLegacyPayment(event.payment),
-                event.type === "paymentSucceeded" ? "confirmed" : "pending",
-              );
+              // Only INCOMING payments produce a "payment received" notice.
+              // Without this guard, paying an invoice announced "⚡ Payment
+              // Received" for the amount just spent, and on the receive screen
+              // it played the success animation for an outgoing send. The
+              // Liquid handler in stores/wallet.ts has always guarded on
+              // direction; this one did not.
+              //
+              // A failed payment also has to report "failed", not "pending":
+              // paymentEvents only auto-clears confirmed/complete, so a failed
+              // send previously sat on screen as "Payment Pending" forever.
+              if (event.payment.direction === "receive") {
+                notifyPaymentReceived(
+                  toLegacyPayment(event.payment),
+                  event.type === "paymentSucceeded"
+                    ? "confirmed"
+                    : event.type === "paymentFailed"
+                      ? "failed"
+                      : "pending",
+                );
+              }
             }
           });
         }
@@ -338,8 +354,12 @@
         console.error("[Layout] Failed to subscribe to rails:", e);
       }
 
-      // SDK is connected - initialize wallet store which will start event listening
-      const { walletStore, transactions } = await import("$lib/stores/wallet");
+      // walletStore and transactions are imported at module scope. Re-declaring
+      // them here with `const` shadowed those bindings for this entire block —
+      // including the rail-event callback above, which reads `transactions`.
+      // Any payment arriving before this line executed threw
+      // "Cannot access 'transactions' before initialization" inside the SDK's
+      // event dispatch, losing the payment from the list and the toast.
 
       // Initialize the wallet store, which will:
       // 1. Get wallet info

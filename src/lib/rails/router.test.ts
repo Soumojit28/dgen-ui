@@ -101,3 +101,25 @@ describe("railForReceiveMethod", () => {
     expect(railForReceiveMethod("nonsense")).toBe("spark");
   });
 });
+
+describe("base58 Liquid addresses", () => {
+  // These fell through to the "unrecognised, default rail" branch and were
+  // handed to Spark, which cannot parse a Liquid address.
+  it.each([
+    ["Q", "QLFrGsTUqvbmiGHqBEqLYqDLpQfXvzgAhH"],
+    ["G", "GqBEqLYqDLpQfXvzgAhHQLFrGsTUqvbmiH"],
+    ["H", "HqBEqLYqDLpQfXvzgAhHQLFrGsTUqvbmiG"],
+  ])("routes a %s-prefixed address to liquid", (_label, address) => {
+    expect(railForDestination(address)).toBe("liquid");
+  });
+
+  it("does not capture a bitcoin base58 address", () => {
+    expect(railForDestination("1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa")).toBe(
+      "spark",
+    );
+  });
+
+  it("does not capture a lightning address starting with the same letter", () => {
+    expect(railForDestination("gregory@breez.tips")).toBe("spark");
+  });
+});

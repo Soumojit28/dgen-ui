@@ -35,7 +35,20 @@ const SETTLEMENT_RANK: Record<PaymentStatus, number> = {
   refundable: -1,
 };
 
-const CONTRADICTION_WINDOW_MS = 2 * 60 * 1000;
+/**
+ * How long the guard keeps suppressing a lower-ranked notification.
+ *
+ * The two sources share no id — the socket carries the server's payment
+ * object, the SDK carries Spark's — so this can only key on amount, and a
+ * wide window therefore swallows a genuinely NEW payment of the same amount.
+ * Two same-amount receives inside a few seconds is rare; the contradiction it
+ * exists to stop always lands within one or two, because both announcements
+ * describe the same event. Ten seconds covers that and little else.
+ *
+ * It was two minutes, which made identical round amounts — tips, splits,
+ * repeated test sends — disappear with no toast and no receipt.
+ */
+const CONTRADICTION_WINDOW_MS = 10 * 1000;
 
 let lastSettled: { amountSat: number; rank: number; at: number } | null = null;
 
