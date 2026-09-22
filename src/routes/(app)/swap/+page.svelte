@@ -81,48 +81,48 @@
         </h3>
         <div class="overflow-y-auto h-60 sm:h-96">
           <p class="mb-3">
-            This is a crypto exchange aggregator allowing you to trade over
-            3,500 cryptocurrencies across 500+ networks.
+            This is a crypto exchange aggregator allowing you to trade thousands
+            of cryptocurrencies across hundreds of blockchains/networks.
           </p>
 
           <p class="mb-3 font-semibold">To swap:</p>
           <ul class="mb-3 list-disc list-inside space-y-1 opacity-90">
             <li>
-              Choose the 2 cryptocurrencies you want to swap & the amounts.
+              Choose the 2 cryptocurrencies you want to swap &amp; the amount.
             </li>
             <li>
-              On the next screen, you will have to enter your sending address
-              (where funds come from) and a refund address (in case of the swap
-              failing).
+              On the next screen, you enter your 'Receive address' (where your
+              funds will arrive), and a 'Refund address' (in case of your swap
+              failing) which is usually the same as your address you're sending
+              from.
             </li>
           </ul>
 
           <div class="mb-3">
             <div class="font-semibold" style="font-size: 1.5em;">TIPS:</div>
             <p class="mt-1">
-              Prepare in advance—select the assets you want to swap, then have
-              your wallet addresses ready to copy/paste.
+              Prepare in advance - Have your wallet addresses ready to
+              copy/paste.
             </p>
           </div>
-          <p class="mb-3">
-            Example: If you want to swap BTC for USDT (on Ethereum):
-          </p>
-          <p class="mb-3">
-            Get your BTC sending/refund addresses and USDT (ERC-20) receiving
-            address before starting.
+
+          <div class="mb-3">
+            <div class="font-semibold" style="font-size: 1.5em;">EXAMPLE:</div>
+            <p class="mt-1">To swap BTC for USDT (on the Ethereum Network):</p>
+            <p class="mt-1">
+              Get your BTC sending address and USDT (ERC-20) receiving address
+              before starting.
+            </p>
+          </div>
+
+          <p class="mb-3 text-yellow-400">
+            SAVE YOUR EXCHANGE ID when it pops up, in the case of your swap
+            failing.
           </p>
           <p class="mb-3 text-yellow-400">
-            SAVE YOUR EXCHANGE ID when it pops up, in the case of any issues
-            happening with your swap.
-          </p>
-          <p class="mb-3 text-yellow-400">
-            DO NOT USE MIXERS/COINJOINERS with any transaction that is involved
-            with a transaction on the DGEN platform or its associated apps due
-            to regulatory compliance
-          </p>
-          <p class="mb-3 text-yellow-400">
-            Note: Off-Ramp feature is not available but it will be soon. The
-            On-Ramp feature here is available.
+            DO NOT USE MIXERS or COINJOINERS with any transaction that is
+            involved with a transaction on this DGEN platform or DGEN's
+            associated apps.
           </p>
         </div>
         <button
