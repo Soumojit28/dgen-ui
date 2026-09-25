@@ -5,7 +5,7 @@
 
   let isLoading = $state(true);
   let hasError = $state(false);
-  let showSwapInfo = $state(true);
+  let showSwapInfo = $state(false);
 
   /**
    * The widget URL, normalised to the query form and themed.
