@@ -355,15 +355,15 @@
       />
       <span class="text-sm text-white/80 leading-relaxed">
         <label for="termsAcceptedCheckbox" class="cursor-pointer select-none">
-          I have read and agree to the
+          By checking this box, I'm confirming I have read and agreed to these
         </label>
         <button
           type="button"
           class="font-semibold text-purple-300 underline underline-offset-2 hover:text-purple-200 transition-colors"
           onclick={openTermsModal}
         >
-          Terms &amp; Conditions
-        </button>
+          terms &amp; conditions
+        </button>.
       </span>
     </div>
 
